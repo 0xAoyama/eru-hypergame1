@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自律陣営バトル</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 10px;
+  overflow-x: hidden;
+  font-family: 'Courier New', monospace;
+  color: #ddd;
+  user-select: none;
+}
+#scoreboard {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(720px, 100%);
+}
+.score-item {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: clamp(11px, 2.8vw, 13px);
+  font-weight: bold;
+  min-width: min(110px, calc(50vw - 24px));
+  text-align: center;
+}
+#wrap {
+  position: relative;
+  display: inline-block;
+  width: min(720px, 100%);
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border: 2px solid #222;
+}
+#banner {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(0,0,0,0.55);
+  font-size: clamp(24px, 8vw, 42px);
+  font-weight: bold;
+  text-align: center;
+  padding: 16px;
+  text-shadow: 0 0 24px currentColor;
+  gap: 20px;
+}
+#restart {
+  font-size: 18px;
+  padding: 10px 36px;
+  cursor: pointer;
+  background: #1a1a1a;
+  color: #eee;
+  border: 2px solid #555;
+  border-radius: 6px;
+  font-family: inherit;
+  text-shadow: none;
+  transition: background 0.15s;
+}
+#restart:hover { background: #333; }
+#info {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #444;
+}
+</style>
+</head>
+<body>
+<div id="scoreboard"></div>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="banner">
+    <span id="banner-text"></span>
+    <button id="restart">再スタート</button>
+  </div>
+</div>
+<div id="info">Units: <span id="ui-units">0</span> &nbsp; Particles: <span id="ui-parts">0</span></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = 720, H = 720;
+canvas.width  = W;
+canvas.height = H;
+
+// ── Constants ─────────────────────────────────────────────
+const BASE_HP          = 600;
+const BASE_R           = 38;
+const UNIT_R           = 6;
+const UNIT_SPEED       = 1.6;
+const UNIT_HP          = 40;
+const UNIT_DAMAGE_BASE = 10;   // damage dealt to base on contact
+const COMBAT_DPS       = 0.55; // hp lost per frame while fighting
+const ATTACK_RANGE     = 13;
+const SPAWN_INTERVAL   = 80;   // frames between spawns
+const MAX_PER_FACTION  = 14;
+const MAX_PARTICLES    = 350;
+const TRAIL_LEN        = 10;
+const WANDER_STRENGTH  = 0.04;
+
+// ── Faction definitions ────────────────────────────────────
+const FDEF = [
+  { id: 0, name: '赤軍', color: '#e74c3c', glow: '#ff4444', tx: 90,    ty: 90    },
+  { id: 1, name: '青軍', color: '#3498db', glow: '#55aaff', tx: W-90,  ty: 90    },
+  { id: 2, name: '緑軍', color: '#2ecc71', glow: '#00ff88', tx: 90,    ty: H-90  },
+  { id: 3, name: '黄軍', color: '#f1c40f', glow: '#ffe066', tx: W-90,  ty: H-90  },
+];
+
+// ── State ──────────────────────────────────────────────────
+let bases, units, particles, frame, gameOver;
+
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function dist(ax, ay, bx, by) { const dx=bx-ax, dy=by-ay; return Math.sqrt(dx*dx+dy*dy); }
+
+function init() {
+  bases = FDEF.map(f => ({
+    ...f,
+    hp: BASE_HP,
+    alive: true,
+    spawnTimer: Math.floor(Math.random() * SPAWN_INTERVAL),
+    pulseT: 0,
+  }));
+  units = [];
+  particles = [];
+  frame = 0;
+  gameOver = false;
+  document.getElementById('banner').style.display = 'none';
+}
+
+// ── Spawn ──────────────────────────────────────────────────
+function spawnUnit(base) {
+  const angle = rnd(0, Math.PI * 2);
+  const spd   = rnd(0.85, 1.15) * UNIT_SPEED;
+  units.push({
+    faction: base.id,
+    x: base.tx + Math.cos(angle) * (BASE_R + 12),
+    y: base.ty + Math.sin(angle) * (BASE_R + 12),
+    vx: Math.cos(angle) * spd,
+    vy: Math.sin(angle) * spd,
+    hp: UNIT_HP,
+    trail: [],
+    fighting: false,
+    wanderAngle: rnd(0, Math.PI * 2),
+  });
+}
+
+// ── Particles ──────────────────────────────────────────────
+function burst(x, y, color, n, spd) {
+  for (let i = 0; i < n && particles.length < MAX_PARTICLES; i++) {
+    const a = rnd(0, Math.PI * 2);
+    const s = rnd(0.4, spd);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s,
+      life: 1,
+      decay: rnd(0.018, 0.05),
+      color,
+      r: rnd(1.5, 4),
+    });
+  }
+}
+
+// ── Update ─────────────────────────────────────────────────
+function update() {
+  if (gameOver) return;
+  frame++;
+
+  // Spawn
+  bases.forEach(base => {
+    if (!base.alive) return;
+    base.spawnTimer++;
+    base.pulseT += 0.05;
+    const count = units.filter(u => u.faction === base.id).length;
+    if (base.spawnTimer >= SPAWN_INTERVAL && count < MAX_PER_FACTION) {
+      spawnUnit(base);
+      base.spawnTimer = 0;
+    }
+  });
+
+  // Unit AI + movement
+  units.forEach(u => {
+    u.fighting = false;
+
+    // Find nearest enemy unit
+    let nearestEnemy = null, nearestEDist = Infinity;
+    for (const o of units) {
+      if (o.faction === u.faction) continue;
+      const d = dist(u.x, u.y, o.x, o.y);
+      if (d < nearestEDist) { nearestEDist = d; nearestEnemy = o; }
+    }
+
+    // Find nearest enemy base
+    let targetBase = null, targetBDist = Infinity;
+    for (const b of bases) {
+      if (!b.alive || b.id === u.faction) continue;
+      const d = dist(u.x, u.y, b.tx, b.ty);
+      if (d < targetBDist) { targetBDist = d; targetBase = b; }
+    }
+
+    let desiredVx = u.vx, desiredVy = u.vy;
+
+    if (nearestEnemy && nearestEDist < 120) {
+      // Pursue nearby enemy unit
+      const dx = nearestEnemy.x - u.x, dy = nearestEnemy.y - u.y;
+      const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+      desiredVx = (dx / d) * UNIT_SPEED;
+      desiredVy = (dy / d) * UNIT_SPEED;
+
+      if (nearestEDist < ATTACK_RANGE) {
+        u.fighting = true;
+        nearestEnemy.fighting = true;
+        u.hp            -= COMBAT_DPS;
+        nearestEnemy.hp -= COMBAT_DPS;
+        if (Math.random() < 0.25) {
+          burst((u.x + nearestEnemy.x) * 0.5, (u.y + nearestEnemy.y) * 0.5, '#fff', 2, 2);
+        }
+      }
+    } else if (targetBase) {
+      // Move toward enemy base with slight wander
+      u.wanderAngle += rnd(-0.15, 0.15);
+      const dx = targetBase.tx - u.x, dy = targetBase.ty - u.y;
+      const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+      desiredVx = (dx / d) * UNIT_SPEED + Math.cos(u.wanderAngle) * WANDER_STRENGTH;
+      desiredVy = (dy / d) * UNIT_SPEED + Math.sin(u.wanderAngle) * WANDER_STRENGTH;
+    }
+
+    // Smooth steering
+    u.vx += (desiredVx - u.vx) * 0.12;
+    u.vy += (desiredVy - u.vy) * 0.12;
+
+    // Clamp speed
+    const spd = Math.sqrt(u.vx*u.vx + u.vy*u.vy) || 1;
+    if (spd > UNIT_SPEED * 1.15) {
+      u.vx = (u.vx / spd) * UNIT_SPEED;
+      u.vy = (u.vy / spd) * UNIT_SPEED;
+    }
+
+    // Move
+    u.x += u.vx;
+    u.y += u.vy;
+
+    // Wall bounce
+    if (u.x - UNIT_R < 0)   { u.x = UNIT_R;   u.vx =  Math.abs(u.vx); }
+    if (u.x + UNIT_R > W)   { u.x = W-UNIT_R; u.vx = -Math.abs(u.vx); }
+    if (u.y - UNIT_R < 0)   { u.y = UNIT_R;   u.vy =  Math.abs(u.vy); }
+    if (u.y + UNIT_R > H)   { u.y = H-UNIT_R; u.vy = -Math.abs(u.vy); }
+
+    // Trail
+    u.trail.push({ x: u.x, y: u.y });
+    if (u.trail.length > TRAIL_LEN) u.trail.shift();
+
+    // Check base contact
+    bases.forEach(b => {
+      if (!b.alive || b.id === u.faction) return;
+      if (dist(u.x, u.y, b.tx, b.ty) < BASE_R) {
+        b.hp -= UNIT_DAMAGE_BASE;
+        b.pulseT = 0;
+        burst(u.x, u.y, FDEF[u.faction].color, 6, 3.5);
+        burst(b.tx + rnd(-10,10), b.ty + rnd(-10,10), FDEF[b.id].color, 4, 2.5);
+        u.hp = -1; // unit sacrifices itself
+      }
+    });
+  });
+
+  // Kill dead units
+  units = units.filter(u => {
+    if (u.hp <= 0) {
+      burst(u.x, u.y, FDEF[u.faction].color, 7, 3);
+      return false;
+    }
+    return true;
+  });
+
+  // Kill destroyed bases
+  bases.forEach(b => {
+    if (!b.alive || b.hp > 0) return;
+    b.hp    = 0;
+    b.alive = false;
+    units = units.filter(u => {
+      if (u.faction === b.id) {
+        burst(u.x, u.y, FDEF[b.id].color, 8, 4);
+        return false;
+      }
+      return true;
+    });
+    burst(b.tx, b.ty, FDEF[b.id].color, 50, 7);
+    burst(b.tx, b.ty, '#ffffff', 25, 9);
+  });
+
+  // Particles
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.94; p.vy *= 0.94;
+    p.life -= p.decay;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  // Win check
+  const alive = bases.filter(b => b.alive);
+  if (alive.length <= 1 && bases.length === 4) {
+    gameOver = true;
+    const banner = document.getElementById('banner');
+    const text   = document.getElementById('banner-text');
+    if (alive.length === 1) {
+      text.textContent  = `🏆 ${alive[0].name} の勝利！`;
+      text.style.color  = alive[0].color;
+      banner.style.color = alive[0].color;
+    } else {
+      text.textContent  = '引き分け！';
+      text.style.color  = '#eee';
+      banner.style.color = '#eee';
+    }
+    banner.style.display = 'flex';
+  }
+}
+
+// ── Draw helpers ───────────────────────────────────────────
+function hex2(v) { return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0'); }
+function colorAlpha(hex, a) { return hex + hex2(a * 255); }
+
+function drawGrid() {
+  ctx.strokeStyle = '#161616';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y <= H; y += 50) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+}
+
+function drawBase(b) {
+  const f = FDEF[b.id];
+  const ratio = b.hp / BASE_HP;
+
+  if (b.alive) {
+    // Pulse glow
+    const pulse = 0.5 + 0.5 * Math.sin(b.pulseT);
+    ctx.save();
+    ctx.shadowColor = f.glow;
+    ctx.shadowBlur  = 15 + pulse * 12;
+    ctx.beginPath();
+    ctx.arc(b.tx, b.ty, BASE_R + 4 + pulse * 3, 0, Math.PI * 2);
+    ctx.fillStyle = colorAlpha(f.color, 0.15);
+    ctx.fill();
+    ctx.restore();
+
+    // Base fill
+    ctx.beginPath();
+    ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI * 2);
+    ctx.fillStyle = colorAlpha(f.color, 0.25);
+    ctx.fill();
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // HP arc (bg)
+    ctx.beginPath();
+    ctx.arc(b.tx, b.ty, BASE_R + 8, -Math.PI / 2, Math.PI * 1.5);
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    // HP arc (fill)
+    if (ratio > 0) {
+      ctx.beginPath();
+      ctx.arc(b.tx, b.ty, BASE_R + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+  } else {
+    // Destroyed base (dim)
+    ctx.beginPath();
+    ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Label
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  if (b.alive) {
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillText(f.name, b.tx, b.ty - 7);
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillText(Math.ceil(Math.max(0, b.hp)), b.tx, b.ty + 9);
+  } else {
+    ctx.fillStyle = '#444';
+    ctx.font = 'bold 12px "Courier New", monospace';
+    ctx.fillText('撃墜', b.tx, b.ty);
+  }
+}
+
+function drawUnit(u) {
+  const f = FDEF[u.faction];
+
+  // Trail
+  for (let i = 0; i < u.trail.length; i++) {
+    const t = u.trail[i];
+    const a = (i / u.trail.length) * 0.35;
+    const r = UNIT_R * 0.5 * (i / u.trail.length);
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, Math.max(0.5, r), 0, Math.PI * 2);
+    ctx.fillStyle = colorAlpha(f.color, a);
+    ctx.fill();
+  }
+
+  // Unit glow
+  ctx.save();
+  ctx.shadowColor = f.glow;
+  ctx.shadowBlur  = u.fighting ? 14 : 6;
+
+  // Unit circle
+  ctx.beginPath();
+  ctx.arc(u.x, u.y, UNIT_R, 0, Math.PI * 2);
+  ctx.fillStyle = u.fighting ? f.glow : f.color;
+  ctx.fill();
+  ctx.restore();
+
+  // HP bar
+  const hRatio = u.hp / UNIT_HP;
+  const bw = UNIT_R * 2.4;
+  const bx = u.x - bw / 2;
+  const by = u.y - UNIT_R - 5;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(bx, by, bw, 2.5);
+  ctx.fillStyle = hRatio > 0.5 ? '#2ecc71' : hRatio > 0.25 ? '#f39c12' : '#e74c3c';
+  ctx.fillRect(bx, by, bw * hRatio, 2.5);
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life * p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function updateScoreboard() {
+  const sb = document.getElementById('scoreboard');
+  sb.innerHTML = bases.map(b => {
+    const f   = FDEF[b.id];
+    const pct = Math.max(0, Math.round(b.hp / BASE_HP * 100));
+    const cnt = units.filter(u => u.faction === b.id).length;
+    return `<div class="score-item" style="background:${f.color}22;border:1.5px solid ${f.color};color:${f.color}">
+      ${f.name} ${b.alive ? pct + '% ×' + cnt : '撃墜'}
+    </div>`;
+  }).join('');
+  document.getElementById('ui-units').textContent = units.length;
+  document.getElementById('ui-parts').textContent = particles.length;
+}
+
+// ── Main loop ──────────────────────────────────────────────
+function loop() {
+  update();
+
+  // Draw
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  drawGrid();
+  drawParticles();
+  bases.forEach(drawBase);
+  units.forEach(drawUnit);
+
+  updateScoreboard();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('restart').addEventListener('click', init);
+
+init();
+loop();
+</script>
+</body>
+</html>
