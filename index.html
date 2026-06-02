@@ -82,7 +82,7 @@ canvas {
 #faction-panel {
   width: min(720px, 100%);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 5px;
   margin-top: 6px;
 }
@@ -94,13 +94,17 @@ canvas {
   background: #0d0d0d;
   transition: background 0.1s, border-color 0.1s;
 }
-.faction-card:hover:not(.dead) { background: #141414; }
+.faction-card:hover:not(.dead):not(.locked) { background: #141414; }
 .faction-card.dead { opacity: 0.38; cursor: default; }
+.faction-card.locked { cursor: default; }
 .fc-name { font-size: clamp(10px, 2.5vw, 13px); font-weight: bold; margin-bottom: 1px; }
-.fc-trait { font-size: clamp(7px, 1.9vw, 10px); color: #555; margin-bottom: 4px; }
+.fc-trait { font-size: clamp(9px, 2.1vw, 11px); color: #555; margin-bottom: 4px; }
 .fc-bar-bg { height: 5px; background: #1e1e1e; border-radius: 3px; margin-bottom: 3px; overflow: hidden; }
 .fc-bar-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
-.fc-units { font-size: clamp(7px, 1.9vw, 10px); color: #777; }
+.fc-units { font-size: clamp(9px, 2.1vw, 11px); color: #777; }
+@media (max-width: 400px) {
+  #faction-panel { grid-template-columns: repeat(2, 1fr); }
+}
 #controls {
   width: min(720px, 100%);
   margin-top: 7px;
@@ -315,6 +319,7 @@ let playerFaction = -1;
 let logLines = [];
 let powerHistory = []; // [{r,g,b,y}] HP% per faction per sample
 let interventionCount = 0;
+let predictionLocked = false;
 
 function rnd(a, b) { return a + rng() * (b - a); }
 function dst(ax, ay, bx, by) { const dx = bx-ax, dy = by-ay; return Math.sqrt(dx*dx+dy*dy); }
@@ -401,7 +406,7 @@ function comebackMult(base) {
 
 // ── Player actions ────────────────────────────────────────────
 function doCheer() {
-  if (playerFaction < 0 || influence < 20 || gameOver) return;
+  if (playerFaction < 0 || influence < 20 || gameOver || !bases[playerFaction].alive) return;
   influence -= 20;
   interventionCount++;
   const f = FDEF[playerFaction];
@@ -435,6 +440,7 @@ function doSupply() {
 
 function doStorm() {
   if (playerFaction < 0 || influence < 50 || gameOver) return;
+  if (!bases[playerFaction].alive) return;
   influence -= 50;
   interventionCount++;
   const f = FDEF[playerFaction];
@@ -447,10 +453,11 @@ function doStorm() {
   units.forEach(u => {
     if (u.faction === playerFaction) return;
     u.hp -= 20;
-    if (Math.random() < 0.4) burst(u.x, u.y, '#8899ff', 3, 2);
+    if (rng() < 0.4) burst(u.x, u.y, '#8899ff', 3, 2);
   });
   triggerShake(26);
   addFloat(W/2, H/2 - 40, '⚡ 嵐 ⚡', '#99aaff');
+
   addLog(`★ 嵐を解き放つ！ 全敵陣営に大ダメージ`, '#99aaff');
   updateInfUI(); updateBtns();
 }
@@ -465,9 +472,9 @@ function updateInfUI() {
 }
 
 function updateBtns() {
-  const ok = playerFaction >= 0 && !gameOver;
+  const ok = playerFaction >= 0 && !gameOver && bases[playerFaction]?.alive;
   document.getElementById('btn-cheer').disabled  = !ok || influence < 20;
-  document.getElementById('btn-supply').disabled = !ok || influence < 30 || (playerFaction >= 0 && !bases[playerFaction]?.alive);
+  document.getElementById('btn-supply').disabled = !ok || influence < 30;
   document.getElementById('btn-storm').disabled  = !ok || influence < 50;
 }
 
@@ -497,8 +504,9 @@ function renderPanel() {
 
 function selectFaction(id) {
   if (gameOver || !bases[id].alive) return;
+  if (playerFaction >= 0) return; // 予測ロック: 一度選んだら変更不可
   playerFaction = id;
-  addLog(`▶ ${FDEF[id].name}を応援！ 勝利に向けて介入しよう`, FDEF[id].color);
+  addLog(`▶ ${FDEF[id].name}に予測固定！ もう変更できません`, FDEF[id].color);
   renderPanel(); updateBtns();
 }
 
@@ -629,7 +637,7 @@ function update() {
         u.fighting = true; ne.fighting = true;
         u.hp  -= COMBAT_DPS;
         ne.hp -= COMBAT_DPS * f.damageMult * cb;
-        if (Math.random() < 0.25)
+        if (rng() < 0.25)
           burst((u.x+ne.x)*0.5, (u.y+ne.y)*0.5, '#fff', 2, 2);
       }
     } else if (tb) {
@@ -853,8 +861,8 @@ function drawFloats() {
 function loop() {
   update();
 
-  const sx = shakeF > 0 ? (Math.random()-0.5)*9 : 0;
-  const sy = shakeF > 0 ? (Math.random()-0.5)*9 : 0;
+  const sx = shakeF > 0 ? (rng()-0.5)*9 : 0;
+  const sy = shakeF > 0 ? (rng()-0.5)*9 : 0;
 
   ctx.save();
   if (shakeF > 0) ctx.translate(sx, sy);
