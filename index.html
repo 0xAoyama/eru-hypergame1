@@ -238,6 +238,7 @@ function getSeed() {
 
 let currentSeed = getSeed();
 let rng = mkRng(currentSeed);
+let visRng = mkRng((currentSeed ^ 0x9E3779B9) | 0);
 document.getElementById('seed-val').textContent = currentSeed;
 history.replaceState(null, '', '?seed=' + currentSeed);
 
@@ -322,6 +323,7 @@ let interventionCount = 0;
 let predictionLocked = false;
 
 function rnd(a, b) { return a + rng() * (b - a); }
+function vrnd(a, b) { return a + visRng() * (b - a); }
 function dst(ax, ay, bx, by) { const dx = bx-ax, dy = by-ay; return Math.sqrt(dx*dx+dy*dy); }
 
 // ── Floating text ─────────────────────────────────────────────
@@ -344,6 +346,7 @@ function triggerShake(f) { shakeF = Math.max(shakeF, f); }
 // ── Init ──────────────────────────────────────────────────────
 function init() {
   rng = mkRng(currentSeed);
+  visRng = mkRng((currentSeed ^ 0x9E3779B9) | 0);
   bases = FDEF.map(f => ({
     ...f,
     hp: BASE_HP * f.hpMult,
@@ -386,10 +389,10 @@ function spawnUnit(base) {
 // ── Particles ─────────────────────────────────────────────────
 function burst(x, y, color, n, spd) {
   for (let i = 0; i < n && particles.length < MAX_PARTS; i++) {
-    const a = rnd(0, Math.PI * 2), s = rnd(0.4, spd);
+    const a = vrnd(0, Math.PI * 2), s = vrnd(0.4, spd);
     particles.push({
       x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
-      life: 1, decay: rnd(0.018, 0.05), color, r: rnd(1.5, 4),
+      life: 1, decay: vrnd(0.018, 0.05), color, r: vrnd(1.5, 4),
     });
   }
 }
@@ -861,8 +864,8 @@ function drawFloats() {
 function loop() {
   update();
 
-  const sx = shakeF > 0 ? (rng()-0.5)*9 : 0;
-  const sy = shakeF > 0 ? (rng()-0.5)*9 : 0;
+  const sx = shakeF > 0 ? (visRng()-0.5)*9 : 0;
+  const sy = shakeF > 0 ? (visRng()-0.5)*9 : 0;
 
   ctx.save();
   if (shakeF > 0) ctx.translate(sx, sy);
