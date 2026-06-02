@@ -11,301 +11,682 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   min-height: 100vh;
-  padding: 10px;
+  padding: 8px;
   overflow-x: hidden;
   font-family: 'Courier New', monospace;
   color: #ddd;
   user-select: none;
 }
-#scoreboard {
+#header {
+  width: min(720px, 100%);
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: min(720px, 100%);
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
 }
-.score-item {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: clamp(11px, 2.8vw, 13px);
-  font-weight: bold;
-  min-width: min(110px, calc(50vw - 24px));
-  text-align: center;
-}
+#title { color: #aaa; font-weight: bold; font-size: 14px; letter-spacing: 1px; }
+#seed-info { color: #555; cursor: pointer; font-size: 11px; }
+#seed-info:hover { color: #888; }
 #wrap {
   position: relative;
-  display: inline-block;
   width: min(720px, 100%);
 }
 canvas {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1/1;
   border: 2px solid #222;
 }
-#banner {
+#result-overlay {
   position: absolute;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  background: rgba(0,0,0,0.55);
-  font-size: clamp(24px, 8vw, 42px);
-  font-weight: bold;
-  text-align: center;
-  padding: 16px;
-  text-shadow: 0 0 24px currentColor;
-  gap: 20px;
+  background: rgba(0,0,0,0.76);
+  gap: 14px;
+  padding: 20px;
 }
-#restart {
-  font-size: 18px;
-  padding: 10px 36px;
+#result-title {
+  font-size: clamp(26px, 8vw, 46px);
+  font-weight: bold;
+  text-shadow: 0 0 30px currentColor;
+  text-align: center;
+}
+#result-prediction {
+  font-size: clamp(13px, 3.5vw, 18px);
+  text-align: center;
+  color: #ccc;
+}
+#result-stats {
+  font-size: clamp(10px, 2.5vw, 13px);
+  color: #777;
+  text-align: center;
+  line-height: 1.6;
+}
+#btn-restart {
+  padding: 10px 32px;
+  font-size: 15px;
   cursor: pointer;
   background: #1a1a1a;
   color: #eee;
   border: 2px solid #555;
   border-radius: 6px;
   font-family: inherit;
-  text-shadow: none;
   transition: background 0.15s;
 }
-#restart:hover { background: #333; }
-#info {
+#btn-restart:hover { background: #2e2e2e; }
+#faction-panel {
+  width: min(720px, 100%);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
   margin-top: 6px;
-  font-size: 11px;
-  color: #444;
 }
+.faction-card {
+  border: 2px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 6px 7px;
+  cursor: pointer;
+  background: #0d0d0d;
+  transition: background 0.1s, border-color 0.1s;
+}
+.faction-card:hover:not(.dead) { background: #141414; }
+.faction-card.dead { opacity: 0.38; cursor: default; }
+.fc-name { font-size: clamp(10px, 2.5vw, 13px); font-weight: bold; margin-bottom: 1px; }
+.fc-trait { font-size: clamp(7px, 1.9vw, 10px); color: #555; margin-bottom: 4px; }
+.fc-bar-bg { height: 5px; background: #1e1e1e; border-radius: 3px; margin-bottom: 3px; overflow: hidden; }
+.fc-bar-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
+.fc-units { font-size: clamp(7px, 1.9vw, 10px); color: #777; }
+#controls {
+  width: min(720px, 100%);
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#influence-area { flex: 1; min-width: 130px; }
+#influence-label { font-size: 11px; color: #777; margin-bottom: 3px; }
+#influence-bar-bg {
+  height: 9px;
+  background: #151515;
+  border-radius: 5px;
+  border: 1px solid #2e2e2e;
+  overflow: hidden;
+}
+#influence-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7744ee, #bb77ff);
+  border-radius: 5px;
+  transition: width 0.25s;
+}
+.action-btn {
+  padding: 7px 12px;
+  font-size: clamp(10px, 2.4vw, 13px);
+  cursor: pointer;
+  background: #141414;
+  color: #bbb;
+  border: 1.5px solid #383838;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: background 0.12s, opacity 0.15s;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.action-btn:hover:not(:disabled) { background: #242424; }
+.action-btn:disabled { opacity: 0.28; cursor: default; }
+.action-btn .cost { font-size: 9px; color: #666; display: block; }
+#event-log {
+  width: min(720px, 100%);
+  margin-top: 7px;
+  background: #0d0d0d;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 7px 9px;
+  height: 86px;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.log-entry { color: #555; padding: 0; }
+#history-panel {
+  width: min(720px, 100%);
+  margin-top: 7px;
+  background: #0d0d0d;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 6px 9px 7px;
+}
+#history-label {
+  font-size: 10px;
+  color: #444;
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+#history-canvas {
+  display: block;
+  width: 100%;
+  height: 56px;
+  image-rendering: pixelated;
+}
+#bottom-info { margin-top: 4px; font-size: 10px; color: #2e2e2e; }
 </style>
 </head>
 <body>
-<div id="scoreboard"></div>
+
+<div id="header">
+  <div id="title">観戦介入型 自律陣営バトル</div>
+  <div id="seed-info" title="クリックでシード変更">SEED: <span id="seed-val">----</span></div>
+</div>
+
 <div id="wrap">
   <canvas id="c"></canvas>
-  <div id="banner">
-    <span id="banner-text"></span>
-    <button id="restart">再スタート</button>
+  <div id="result-overlay">
+    <div id="result-title"></div>
+    <div id="result-prediction"></div>
+    <div id="result-stats"></div>
+    <button id="btn-restart">再スタート</button>
   </div>
 </div>
-<div id="info">Units: <span id="ui-units">0</span> &nbsp; Particles: <span id="ui-parts">0</span></div>
+
+<div id="faction-panel"></div>
+
+<div id="controls">
+  <div id="influence-area">
+    <div id="influence-label">INFLUENCE: <span id="inf-val">100</span>/100</div>
+    <div id="influence-bar-bg"><div id="influence-bar-fill" style="width:100%"></div></div>
+  </div>
+  <button class="action-btn" id="btn-cheer" disabled>応援<span class="cost">-20 INF</span></button>
+  <button class="action-btn" id="btn-supply" disabled>補給<span class="cost">-30 INF</span></button>
+  <button class="action-btn" id="btn-storm" disabled>嵐<span class="cost">-50 INF</span></button>
+</div>
+
+<div id="event-log"></div>
+
+<div id="history-panel">
+  <div id="history-label">POWER HISTORY</div>
+  <canvas id="history-canvas" width="700" height="56"></canvas>
+</div>
+
+<div id="bottom-info">Units:<span id="ui-units">0</span> Parts:<span id="ui-parts">0</span> F:<span id="ui-frame">0</span></div>
 
 <script>
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-const W = 720, H = 720;
-canvas.width  = W;
-canvas.height = H;
+'use strict';
 
-// ── Constants ─────────────────────────────────────────────
-const BASE_HP          = 600;
-const BASE_R           = 38;
-const UNIT_R           = 6;
-const UNIT_SPEED       = 1.6;
-const UNIT_HP          = 40;
-const UNIT_DAMAGE_BASE = 10;   // damage dealt to base on contact
-const COMBAT_DPS       = 0.55; // hp lost per frame while fighting
-const ATTACK_RANGE     = 13;
-const SPAWN_INTERVAL   = 80;   // frames between spawns
-const MAX_PER_FACTION  = 14;
-const MAX_PARTICLES    = 350;
-const TRAIL_LEN        = 10;
-const WANDER_STRENGTH  = 0.04;
-
-// ── Faction definitions ────────────────────────────────────
-const FDEF = [
-  { id: 0, name: '赤軍', color: '#e74c3c', glow: '#ff4444', tx: 90,    ty: 90    },
-  { id: 1, name: '青軍', color: '#3498db', glow: '#55aaff', tx: W-90,  ty: 90    },
-  { id: 2, name: '緑軍', color: '#2ecc71', glow: '#00ff88', tx: 90,    ty: H-90  },
-  { id: 3, name: '黄軍', color: '#f1c40f', glow: '#ffe066', tx: W-90,  ty: H-90  },
-];
-
-// ── State ──────────────────────────────────────────────────
-let bases, units, particles, frame, gameOver;
-
-function rnd(a, b) { return a + Math.random() * (b - a); }
-function dist(ax, ay, bx, by) { const dx=bx-ax, dy=by-ay; return Math.sqrt(dx*dx+dy*dy); }
-
-function init() {
-  bases = FDEF.map(f => ({
-    ...f,
-    hp: BASE_HP,
-    alive: true,
-    spawnTimer: Math.floor(Math.random() * SPAWN_INTERVAL),
-    pulseT: 0,
-  }));
-  units = [];
-  particles = [];
-  frame = 0;
-  gameOver = false;
-  document.getElementById('banner').style.display = 'none';
+// ── Seeded RNG (mulberry32) ────────────────────────────────────
+function mkRng(seed) {
+  return function() {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-// ── Spawn ──────────────────────────────────────────────────
+function getSeed() {
+  const p = new URLSearchParams(location.search).get('seed');
+  return p ? (parseInt(p, 10) || 1) : (Math.floor(Math.random() * 99999) + 1);
+}
+
+let currentSeed = getSeed();
+let rng = mkRng(currentSeed);
+document.getElementById('seed-val').textContent = currentSeed;
+history.replaceState(null, '', '?seed=' + currentSeed);
+
+document.getElementById('seed-info').addEventListener('click', () => {
+  const s = prompt('シードを入力（空白でランダム）:', currentSeed);
+  if (s === null) return;
+  const n = s.trim() === '' ? (Math.floor(Math.random() * 99999) + 1) : (parseInt(s, 10) || 1);
+  location.href = '?seed=' + n;
+});
+
+// ── Canvas ────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 720, H = 720;
+canvas.width = W;
+canvas.height = H;
+
+const hCanvas = document.getElementById('history-canvas');
+const hCtx = hCanvas.getContext('2d');
+const HW = 700, HH = 56;
+
+// ── Faction definitions ───────────────────────────────────────
+// Traits: 赤=攻撃型, 青=防御型, 緑=再生型, 黄=高速型
+const FDEF = [
+  {
+    id: 0, name: '赤軍', color: '#e74c3c', glow: '#ff5555',
+    tx: 90, ty: 90,
+    trait: '攻撃型', traitDesc: '攻撃↑ 耐久↓',
+    spawnInterval: 88, speedMult: 1.05, damageMult: 1.55, hpMult: 0.75, unitHpMult: 0.75,
+    regenRate: 0
+  },
+  {
+    id: 1, name: '青軍', color: '#3498db', glow: '#55aaff',
+    tx: W - 90, ty: 90,
+    trait: '防御型', traitDesc: '耐久↑ 速度↓',
+    spawnInterval: 108, speedMult: 0.76, damageMult: 0.85, hpMult: 1.55, unitHpMult: 1.55,
+    regenRate: 0
+  },
+  {
+    id: 2, name: '緑軍', color: '#2ecc71', glow: '#00ff88',
+    tx: 90, ty: H - 90,
+    trait: '再生型', traitDesc: 'HP再生 均衡型',
+    spawnInterval: 82, speedMult: 1.0, damageMult: 1.0, hpMult: 1.0, unitHpMult: 1.0,
+    regenRate: 0.12   // HP regen per frame
+  },
+  {
+    id: 3, name: '黄軍', color: '#f1c40f', glow: '#ffe066',
+    tx: W - 90, ty: H - 90,
+    trait: '高速型', traitDesc: '速度↑ 攻撃↓',
+    spawnInterval: 55, speedMult: 1.7, damageMult: 0.72, hpMult: 0.88, unitHpMult: 0.88,
+    regenRate: 0
+  },
+];
+
+const BASE_HP      = 800;
+const BASE_R       = 38;
+const UNIT_R       = 6;
+const MAX_UNITS    = 14;
+const MAX_PARTS    = 480;
+const TRAIL_LEN    = 10;
+const WANDER_STR   = 0.04;
+const COMBAT_DPS   = 0.55;
+const ATTACK_RANGE = 13;
+const UNIT_SPEED   = 1.6;
+const UNIT_DMG     = 10;
+const INF_MAX      = 100;
+const INF_REGEN    = 108; // frames per +1
+
+// History sampling: record HP% every N frames
+const HIST_SAMPLE  = 20;
+const HIST_MAX     = 350;
+
+// ── State ─────────────────────────────────────────────────────
+let bases, units, particles, floats, frame, gameOver;
+let shakeF = 0;
+let influence = INF_MAX;
+let infTimer  = 0;
+let playerFaction = -1;
+let logLines = [];
+let powerHistory = []; // [{r,g,b,y}] HP% per faction per sample
+let interventionCount = 0;
+
+function rnd(a, b) { return a + rng() * (b - a); }
+function dst(ax, ay, bx, by) { const dx = bx-ax, dy = by-ay; return Math.sqrt(dx*dx+dy*dy); }
+
+// ── Floating text ─────────────────────────────────────────────
+function addFloat(x, y, text, color) {
+  floats.push({ x, y, text, color, life: 1.0, vy: -1.1 });
+}
+
+// ── Event log ─────────────────────────────────────────────────
+function addLog(msg, color) {
+  logLines.unshift({ msg, color: color || '#666' });
+  if (logLines.length > 40) logLines.pop();
+  const el = document.getElementById('event-log');
+  el.innerHTML = logLines.map(e =>
+    `<div class="log-entry" style="color:${e.color}">${e.msg}</div>`
+  ).join('');
+}
+
+function triggerShake(f) { shakeF = Math.max(shakeF, f); }
+
+// ── Init ──────────────────────────────────────────────────────
+function init() {
+  rng = mkRng(currentSeed);
+  bases = FDEF.map(f => ({
+    ...f,
+    hp: BASE_HP * f.hpMult,
+    maxHp: BASE_HP * f.hpMult,
+    alive: true,
+    spawnTimer: Math.floor(rng() * f.spawnInterval),
+    pulseT: rng() * Math.PI * 2,
+    killCount: 0,
+  }));
+  units = []; particles = []; floats = [];
+  frame = 0; gameOver = false;
+  influence = INF_MAX; infTimer = 0;
+  logLines = []; shakeF = 0;
+  powerHistory = [{ r: 1, g: 1, b: 1, y: 1 }];
+  interventionCount = 0;
+
+  document.getElementById('result-overlay').style.display = 'none';
+  updateInfUI();
+  renderPanel();
+  updateBtns();
+  addLog('バトル開始！ 陣営を選んで介入しよう', '#888');
+  drawHistory();
+}
+
+// ── Spawn ─────────────────────────────────────────────────────
 function spawnUnit(base) {
-  const angle = rnd(0, Math.PI * 2);
-  const spd   = rnd(0.85, 1.15) * UNIT_SPEED;
+  const a = rnd(0, Math.PI * 2);
+  const spd = rnd(0.85, 1.15) * UNIT_SPEED * base.speedMult;
   units.push({
     faction: base.id,
-    x: base.tx + Math.cos(angle) * (BASE_R + 12),
-    y: base.ty + Math.sin(angle) * (BASE_R + 12),
-    vx: Math.cos(angle) * spd,
-    vy: Math.sin(angle) * spd,
-    hp: UNIT_HP,
-    trail: [],
-    fighting: false,
-    wanderAngle: rnd(0, Math.PI * 2),
+    x: base.tx + Math.cos(a) * (BASE_R + 12),
+    y: base.ty + Math.sin(a) * (BASE_R + 12),
+    vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+    hp: 40 * base.unitHpMult, maxHp: 40 * base.unitHpMult,
+    trail: [], fighting: false,
+    wanderA: rnd(0, Math.PI * 2),
   });
 }
 
-// ── Particles ──────────────────────────────────────────────
+// ── Particles ─────────────────────────────────────────────────
 function burst(x, y, color, n, spd) {
-  for (let i = 0; i < n && particles.length < MAX_PARTICLES; i++) {
-    const a = rnd(0, Math.PI * 2);
-    const s = rnd(0.4, spd);
+  for (let i = 0; i < n && particles.length < MAX_PARTS; i++) {
+    const a = rnd(0, Math.PI * 2), s = rnd(0.4, spd);
     particles.push({
-      x, y,
-      vx: Math.cos(a) * s,
-      vy: Math.sin(a) * s,
-      life: 1,
-      decay: rnd(0.018, 0.05),
-      color,
-      r: rnd(1.5, 4),
+      x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+      life: 1, decay: rnd(0.018, 0.05), color, r: rnd(1.5, 4),
     });
   }
 }
 
-// ── Update ─────────────────────────────────────────────────
+// ── Comeback / anti-snowball ──────────────────────────────────
+// Returns a multiplier bonus for a faction based on how far behind they are
+function comebackMult(base) {
+  if (!base.alive) return 1;
+  const ratio = base.hp / base.maxHp;
+  // Bonus kicks in below 40% HP, maxes at 1.35x at near-death
+  if (ratio >= 0.4) return 1;
+  return 1 + (0.4 - ratio) / 0.4 * 0.35;
+}
+
+// ── Player actions ────────────────────────────────────────────
+function doCheer() {
+  if (playerFaction < 0 || influence < 20 || gameOver) return;
+  influence -= 20;
+  interventionCount++;
+  const f = FDEF[playerFaction];
+  let cnt = 0;
+  units.filter(u => u.faction === playerFaction).forEach(u => {
+    const spd = Math.sqrt(u.vx*u.vx + u.vy*u.vy) || 1;
+    u.vx = (u.vx/spd) * spd * 1.38;
+    u.vy = (u.vy/spd) * spd * 1.38;
+    u.hp = Math.min(u.maxHp, u.hp + 12);
+    burst(u.x, u.y, f.color, 4, 2.5);
+    cnt++;
+  });
+  addFloat(bases[playerFaction].tx, bases[playerFaction].ty - 55, '応援！', f.color);
+  addLog(`★ ${f.name}を応援！ 兵士${cnt}体の士気上昇`, f.color);
+  updateInfUI(); updateBtns();
+}
+
+function doSupply() {
+  if (playerFaction < 0 || influence < 30 || gameOver) return;
+  if (!bases[playerFaction].alive) return;
+  influence -= 30;
+  interventionCount++;
+  const f = FDEF[playerFaction];
+  const b = bases[playerFaction];
+  for (let i = 0; i < 3; i++) spawnUnit(b);
+  burst(b.tx, b.ty, f.color, 20, 4.5);
+  addFloat(b.tx, b.ty - 55, '補給！', f.color);
+  addLog(`★ ${f.name}に補給！ 増援×3投入`, f.color);
+  updateInfUI(); updateBtns();
+}
+
+function doStorm() {
+  if (playerFaction < 0 || influence < 50 || gameOver) return;
+  influence -= 50;
+  interventionCount++;
+  const f = FDEF[playerFaction];
+  bases.forEach(b => {
+    if (b.id === playerFaction || !b.alive) return;
+    b.hp -= 95;
+    burst(b.tx, b.ty, '#99aaff', 24, 6);
+    addFloat(b.tx, b.ty, '-95', '#99aaff');
+  });
+  units.forEach(u => {
+    if (u.faction === playerFaction) return;
+    u.hp -= 20;
+    if (Math.random() < 0.4) burst(u.x, u.y, '#8899ff', 3, 2);
+  });
+  triggerShake(26);
+  addFloat(W/2, H/2 - 40, '⚡ 嵐 ⚡', '#99aaff');
+  addLog(`★ 嵐を解き放つ！ 全敵陣営に大ダメージ`, '#99aaff');
+  updateInfUI(); updateBtns();
+}
+
+document.getElementById('btn-cheer').addEventListener('click', doCheer);
+document.getElementById('btn-supply').addEventListener('click', doSupply);
+document.getElementById('btn-storm').addEventListener('click', doStorm);
+
+function updateInfUI() {
+  document.getElementById('inf-val').textContent = Math.floor(influence);
+  document.getElementById('influence-bar-fill').style.width = (influence / INF_MAX * 100) + '%';
+}
+
+function updateBtns() {
+  const ok = playerFaction >= 0 && !gameOver;
+  document.getElementById('btn-cheer').disabled  = !ok || influence < 20;
+  document.getElementById('btn-supply').disabled = !ok || influence < 30 || (playerFaction >= 0 && !bases[playerFaction]?.alive);
+  document.getElementById('btn-storm').disabled  = !ok || influence < 50;
+}
+
+// ── Faction panel ─────────────────────────────────────────────
+function renderPanel() {
+  const panel = document.getElementById('faction-panel');
+  panel.innerHTML = FDEF.map(f => {
+    const b = bases ? bases[f.id] : null;
+    const pct = b ? Math.max(0, b.hp / b.maxHp * 100) : 100;
+    const alive = b ? b.alive : true;
+    const cnt = units ? units.filter(u => u.faction === f.id).length : 0;
+    const sel = playerFaction === f.id;
+    const cb = b && alive ? comebackMult(b) : 1;
+    const cbTxt = cb > 1.05 ? ` ⚡${(cb*100-100).toFixed(0)}%` : '';
+    return `<div class="faction-card${sel?' selected':''}${!alive?' dead':''}"
+      style="${sel?`border-color:${f.color};background:${f.color}14`:`border-color:${alive?'#2a2a2a':'#181818'}`}"
+      onclick="selectFaction(${f.id})">
+      <div class="fc-name" style="color:${f.color}">${f.name}${sel?' ★':''}</div>
+      <div class="fc-trait">[${f.trait}] ${f.traitDesc}</div>
+      <div class="fc-bar-bg">
+        <div class="fc-bar-fill" style="width:${pct.toFixed(1)}%;background:${f.color}"></div>
+      </div>
+      <div class="fc-units">${alive ? `HP:${b?Math.ceil(Math.max(0,b.hp)):'-'} 兵:${cnt}${cbTxt}` : '☠ 撃墜'}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectFaction(id) {
+  if (gameOver || !bases[id].alive) return;
+  playerFaction = id;
+  addLog(`▶ ${FDEF[id].name}を応援！ 勝利に向けて介入しよう`, FDEF[id].color);
+  renderPanel(); updateBtns();
+}
+
+// ── Power history ─────────────────────────────────────────────
+function sampleHistory() {
+  if (powerHistory.length >= HIST_MAX) powerHistory.shift();
+  powerHistory.push({
+    r: bases[0].alive ? bases[0].hp / bases[0].maxHp : 0,
+    b: bases[1].alive ? bases[1].hp / bases[1].maxHp : 0,
+    g: bases[2].alive ? bases[2].hp / bases[2].maxHp : 0,
+    y: bases[3].alive ? bases[3].hp / bases[3].maxHp : 0,
+  });
+}
+
+function drawHistory() {
+  hCtx.fillStyle = '#0d0d0d';
+  hCtx.fillRect(0, 0, HW, HH);
+
+  const n = powerHistory.length;
+  if (n < 2) return;
+
+  const pad = 2;
+  const ch = HH - pad * 2;
+  const cw = HW - pad * 2;
+
+  const keys = ['r', 'b', 'g', 'y'];
+  const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
+
+  keys.forEach((k, i) => {
+    hCtx.beginPath();
+    for (let j = 0; j < n; j++) {
+      const x = pad + (j / (HIST_MAX - 1)) * cw;
+      const y = pad + ch - powerHistory[j][k] * ch;
+      if (j === 0) hCtx.moveTo(x, y);
+      else hCtx.lineTo(x, y);
+    }
+    hCtx.strokeStyle = colors[i];
+    hCtx.globalAlpha = 0.75;
+    hCtx.lineWidth = 1.5;
+    hCtx.stroke();
+    hCtx.globalAlpha = 1;
+  });
+
+  // Grid line at 50%
+  hCtx.strokeStyle = '#1e1e1e';
+  hCtx.lineWidth = 1;
+  hCtx.beginPath();
+  hCtx.moveTo(pad, pad + ch * 0.5);
+  hCtx.lineTo(pad + cw, pad + ch * 0.5);
+  hCtx.stroke();
+
+  // Player faction highlight (last point)
+  if (playerFaction >= 0 && bases[playerFaction].alive) {
+    const k = keys[playerFaction];
+    const last = powerHistory[n - 1];
+    const x = pad + ((n - 1) / (HIST_MAX - 1)) * cw;
+    const y = pad + ch - last[k] * ch;
+    hCtx.beginPath();
+    hCtx.arc(x, y, 3, 0, Math.PI * 2);
+    hCtx.fillStyle = colors[playerFaction];
+    hCtx.fill();
+  }
+}
+
+// ── Update ────────────────────────────────────────────────────
 function update() {
   if (gameOver) return;
   frame++;
+
+  // Influence regen
+  if (++infTimer >= INF_REGEN && influence < INF_MAX) {
+    influence = Math.min(INF_MAX, influence + 1);
+    infTimer = 0;
+    updateInfUI(); updateBtns();
+  }
+
+  if (shakeF > 0) shakeF--;
 
   // Spawn
   bases.forEach(base => {
     if (!base.alive) return;
     base.spawnTimer++;
     base.pulseT += 0.05;
-    const count = units.filter(u => u.faction === base.id).length;
-    if (base.spawnTimer >= SPAWN_INTERVAL && count < MAX_PER_FACTION) {
+
+    // 再生型: HP regen
+    if (base.regenRate > 0 && base.hp < base.maxHp) {
+      base.hp = Math.min(base.maxHp, base.hp + base.regenRate);
+    }
+
+    // Comeback: faster spawn when low HP
+    const cbSI = Math.max(30, Math.floor(base.spawnInterval / comebackMult(base)));
+    if (base.spawnTimer >= cbSI &&
+        units.filter(u => u.faction === base.id).length < MAX_UNITS) {
       spawnUnit(base);
       base.spawnTimer = 0;
     }
   });
 
-  // Unit AI + movement
+  // Unit AI
   units.forEach(u => {
     u.fighting = false;
+    const f = FDEF[u.faction];
+    const base = bases[u.faction];
+    const cb = comebackMult(base);
+    const uSpd = UNIT_SPEED * f.speedMult * (1 + (cb - 1) * 0.5);
 
-    // Find nearest enemy unit
-    let nearestEnemy = null, nearestEDist = Infinity;
+    let ne = null, ned = Infinity;
     for (const o of units) {
       if (o.faction === u.faction) continue;
-      const d = dist(u.x, u.y, o.x, o.y);
-      if (d < nearestEDist) { nearestEDist = d; nearestEnemy = o; }
+      const d = dst(u.x, u.y, o.x, o.y);
+      if (d < ned) { ned = d; ne = o; }
     }
 
-    // Find nearest enemy base
-    let targetBase = null, targetBDist = Infinity;
+    let tb = null, tbd = Infinity;
     for (const b of bases) {
       if (!b.alive || b.id === u.faction) continue;
-      const d = dist(u.x, u.y, b.tx, b.ty);
-      if (d < targetBDist) { targetBDist = d; targetBase = b; }
+      const d = dst(u.x, u.y, b.tx, b.ty);
+      if (d < tbd) { tbd = d; tb = b; }
     }
 
-    let desiredVx = u.vx, desiredVy = u.vy;
+    let dvx = u.vx, dvy = u.vy;
 
-    if (nearestEnemy && nearestEDist < 120) {
-      // Pursue nearby enemy unit
-      const dx = nearestEnemy.x - u.x, dy = nearestEnemy.y - u.y;
-      const d  = Math.sqrt(dx*dx + dy*dy) || 1;
-      desiredVx = (dx / d) * UNIT_SPEED;
-      desiredVy = (dy / d) * UNIT_SPEED;
-
-      if (nearestEDist < ATTACK_RANGE) {
-        u.fighting = true;
-        nearestEnemy.fighting = true;
-        u.hp            -= COMBAT_DPS;
-        nearestEnemy.hp -= COMBAT_DPS;
-        if (Math.random() < 0.25) {
-          burst((u.x + nearestEnemy.x) * 0.5, (u.y + nearestEnemy.y) * 0.5, '#fff', 2, 2);
-        }
+    if (ne && ned < 120) {
+      const dx = ne.x - u.x, dy = ne.y - u.y;
+      const d = Math.sqrt(dx*dx+dy*dy) || 1;
+      dvx = (dx/d) * uSpd; dvy = (dy/d) * uSpd;
+      if (ned < ATTACK_RANGE) {
+        u.fighting = true; ne.fighting = true;
+        u.hp  -= COMBAT_DPS;
+        ne.hp -= COMBAT_DPS * f.damageMult * cb;
+        if (Math.random() < 0.25)
+          burst((u.x+ne.x)*0.5, (u.y+ne.y)*0.5, '#fff', 2, 2);
       }
-    } else if (targetBase) {
-      // Move toward enemy base with slight wander
-      u.wanderAngle += rnd(-0.15, 0.15);
-      const dx = targetBase.tx - u.x, dy = targetBase.ty - u.y;
-      const d  = Math.sqrt(dx*dx + dy*dy) || 1;
-      desiredVx = (dx / d) * UNIT_SPEED + Math.cos(u.wanderAngle) * WANDER_STRENGTH;
-      desiredVy = (dy / d) * UNIT_SPEED + Math.sin(u.wanderAngle) * WANDER_STRENGTH;
+    } else if (tb) {
+      u.wanderA += rnd(-0.15, 0.15);
+      const dx = tb.tx - u.x, dy = tb.ty - u.y;
+      const d = Math.sqrt(dx*dx+dy*dy) || 1;
+      dvx = (dx/d) * uSpd + Math.cos(u.wanderA) * WANDER_STR;
+      dvy = (dy/d) * uSpd + Math.sin(u.wanderA) * WANDER_STR;
     }
 
-    // Smooth steering
-    u.vx += (desiredVx - u.vx) * 0.12;
-    u.vy += (desiredVy - u.vy) * 0.12;
-
-    // Clamp speed
+    u.vx += (dvx - u.vx) * 0.12;
+    u.vy += (dvy - u.vy) * 0.12;
     const spd = Math.sqrt(u.vx*u.vx + u.vy*u.vy) || 1;
-    if (spd > UNIT_SPEED * 1.15) {
-      u.vx = (u.vx / spd) * UNIT_SPEED;
-      u.vy = (u.vy / spd) * UNIT_SPEED;
-    }
+    if (spd > uSpd * 1.15) { u.vx = u.vx/spd * uSpd; u.vy = u.vy/spd * uSpd; }
 
-    // Move
-    u.x += u.vx;
-    u.y += u.vy;
+    u.x += u.vx; u.y += u.vy;
+    if (u.x - UNIT_R < 0)  { u.x = UNIT_R;   u.vx =  Math.abs(u.vx); }
+    if (u.x + UNIT_R > W)  { u.x = W-UNIT_R; u.vx = -Math.abs(u.vx); }
+    if (u.y - UNIT_R < 0)  { u.y = UNIT_R;   u.vy =  Math.abs(u.vy); }
+    if (u.y + UNIT_R > H)  { u.y = H-UNIT_R; u.vy = -Math.abs(u.vy); }
 
-    // Wall bounce
-    if (u.x - UNIT_R < 0)   { u.x = UNIT_R;   u.vx =  Math.abs(u.vx); }
-    if (u.x + UNIT_R > W)   { u.x = W-UNIT_R; u.vx = -Math.abs(u.vx); }
-    if (u.y - UNIT_R < 0)   { u.y = UNIT_R;   u.vy =  Math.abs(u.vy); }
-    if (u.y + UNIT_R > H)   { u.y = H-UNIT_R; u.vy = -Math.abs(u.vy); }
-
-    // Trail
     u.trail.push({ x: u.x, y: u.y });
     if (u.trail.length > TRAIL_LEN) u.trail.shift();
 
-    // Check base contact
     bases.forEach(b => {
       if (!b.alive || b.id === u.faction) return;
-      if (dist(u.x, u.y, b.tx, b.ty) < BASE_R) {
-        b.hp -= UNIT_DAMAGE_BASE;
-        b.pulseT = 0;
-        burst(u.x, u.y, FDEF[u.faction].color, 6, 3.5);
+      if (dst(u.x, u.y, b.tx, b.ty) < BASE_R) {
+        const dmg = UNIT_DMG * f.damageMult * cb;
+        b.hp -= dmg; b.pulseT = 0;
+        bases[u.faction].killCount++;
+        burst(u.x, u.y, f.color, 6, 3.5);
         burst(b.tx + rnd(-10,10), b.ty + rnd(-10,10), FDEF[b.id].color, 4, 2.5);
-        u.hp = -1; // unit sacrifices itself
+        addFloat(b.tx, b.ty, `-${Math.ceil(dmg)}`, f.color);
+        u.hp = -1;
       }
     });
   });
 
-  // Kill dead units
   units = units.filter(u => {
-    if (u.hp <= 0) {
-      burst(u.x, u.y, FDEF[u.faction].color, 7, 3);
-      return false;
-    }
+    if (u.hp <= 0) { burst(u.x, u.y, FDEF[u.faction].color, 7, 3); return false; }
     return true;
   });
 
-  // Kill destroyed bases
   bases.forEach(b => {
     if (!b.alive || b.hp > 0) return;
-    b.hp    = 0;
-    b.alive = false;
+    b.hp = 0; b.alive = false;
     units = units.filter(u => {
-      if (u.faction === b.id) {
-        burst(u.x, u.y, FDEF[b.id].color, 8, 4);
-        return false;
-      }
+      if (u.faction === b.id) { burst(u.x, u.y, FDEF[b.id].color, 8, 4); return false; }
       return true;
     });
-    burst(b.tx, b.ty, FDEF[b.id].color, 50, 7);
-    burst(b.tx, b.ty, '#ffffff', 25, 9);
+    burst(b.tx, b.ty, FDEF[b.id].color, 70, 8);
+    burst(b.tx, b.ty, '#ffffff', 32, 12);
+    triggerShake(28);
+    addFloat(b.tx, b.ty, '撃墜！', FDEF[b.id].color);
+    addLog(`💥 ${FDEF[b.id].name} 撃墜！`, FDEF[b.id].color);
   });
 
-  // Particles
   particles.forEach(p => {
     p.x += p.vx; p.y += p.vy;
     p.vx *= 0.94; p.vy *= 0.94;
@@ -313,101 +694,114 @@ function update() {
   });
   particles = particles.filter(p => p.life > 0);
 
+  floats.forEach(t => { t.y += t.vy; t.life -= 0.017; });
+  floats = floats.filter(t => t.life > 0);
+
+  // History sample
+  if (frame % HIST_SAMPLE === 0) sampleHistory();
+
   // Win check
   const alive = bases.filter(b => b.alive);
-  if (alive.length <= 1 && bases.length === 4) {
+  if (alive.length <= 1) {
     gameOver = true;
-    const banner = document.getElementById('banner');
-    const text   = document.getElementById('banner-text');
+    sampleHistory();
+    const ov   = document.getElementById('result-overlay');
+    const ttl  = document.getElementById('result-title');
+    const pred = document.getElementById('result-prediction');
+    const stats = document.getElementById('result-stats');
     if (alive.length === 1) {
-      text.textContent  = `🏆 ${alive[0].name} の勝利！`;
-      text.style.color  = alive[0].color;
-      banner.style.color = alive[0].color;
+      const winner = alive[0];
+      ttl.textContent = `🏆 ${winner.name} の勝利！`;
+      ttl.style.color = winner.color;
+      if (playerFaction >= 0) {
+        if (playerFaction === winner.id) {
+          pred.textContent = '✨ 予測的中！おめでとう！';
+          pred.style.color = '#ffe066';
+        } else {
+          pred.textContent = `あなたの ${FDEF[playerFaction].name} は敗退...`;
+          pred.style.color = '#777';
+        }
+      } else {
+        pred.textContent = '次は陣営を選んで応援してみよう！';
+        pred.style.color = '#777';
+      }
+      stats.textContent = `介入回数: ${interventionCount}回 | フレーム: ${frame} | SEED: ${currentSeed}`;
     } else {
-      text.textContent  = '引き分け！';
-      text.style.color  = '#eee';
-      banner.style.color = '#eee';
+      ttl.textContent = '引き分け！';
+      ttl.style.color = '#ccc';
+      pred.textContent = '';
+      stats.textContent = `介入回数: ${interventionCount}回 | SEED: ${currentSeed}`;
     }
-    banner.style.display = 'flex';
+    ov.style.display = 'flex';
+    addLog('🏆 バトル終了！', '#aaa');
   }
+
+  if (frame % 6 === 0) { renderPanel(); updateBtns(); }
 }
 
-// ── Draw helpers ───────────────────────────────────────────
-function hex2(v) { return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0'); }
-function colorAlpha(hex, a) { return hex + hex2(a * 255); }
+// ── Draw helpers ──────────────────────────────────────────────
+function hex2(v) { return Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0'); }
+function ca(hex, a) { return hex + hex2(a*255); }
 
 function drawGrid() {
-  ctx.strokeStyle = '#161616';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= W; x += 50) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = 0; y <= H; y += 50) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
+  ctx.strokeStyle = '#161616'; ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 }
 
 function drawBase(b) {
   const f = FDEF[b.id];
-  const ratio = b.hp / BASE_HP;
-
   if (b.alive) {
-    // Pulse glow
     const pulse = 0.5 + 0.5 * Math.sin(b.pulseT);
+    const cb = comebackMult(b);
+    // Extra glow when comeback active
+    const glowRadius = cb > 1.05 ? 20 + pulse * 16 : 15 + pulse * 12;
     ctx.save();
-    ctx.shadowColor = f.glow;
-    ctx.shadowBlur  = 15 + pulse * 12;
-    ctx.beginPath();
-    ctx.arc(b.tx, b.ty, BASE_R + 4 + pulse * 3, 0, Math.PI * 2);
-    ctx.fillStyle = colorAlpha(f.color, 0.15);
-    ctx.fill();
+    ctx.shadowColor = f.glow; ctx.shadowBlur = glowRadius;
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R + 4 + pulse*3, 0, Math.PI*2);
+    ctx.fillStyle = ca(f.color, 0.14); ctx.fill();
     ctx.restore();
 
-    // Base fill
-    ctx.beginPath();
-    ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI * 2);
-    ctx.fillStyle = colorAlpha(f.color, 0.25);
-    ctx.fill();
-    ctx.strokeStyle = f.color;
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI*2);
+    ctx.fillStyle = ca(f.color, 0.22); ctx.fill();
+    ctx.strokeStyle = f.color; ctx.lineWidth = 3; ctx.stroke();
 
-    // HP arc (bg)
-    ctx.beginPath();
-    ctx.arc(b.tx, b.ty, BASE_R + 8, -Math.PI / 2, Math.PI * 1.5);
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    // HP arc (fill)
+    // HP arc
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R+9, -Math.PI/2, Math.PI*1.5);
+    ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 5; ctx.stroke();
+    const ratio = b.hp / b.maxHp;
     if (ratio > 0) {
       ctx.beginPath();
-      ctx.arc(b.tx, b.ty, BASE_R + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
-      ctx.strokeStyle = f.color;
-      ctx.lineWidth = 5;
+      ctx.arc(b.tx, b.ty, BASE_R+9, -Math.PI/2, -Math.PI/2 + Math.PI*2*ratio);
+      ctx.strokeStyle = f.color; ctx.lineWidth = 5; ctx.stroke();
+    }
+
+    // Player selection ring
+    if (playerFaction === b.id) {
+      ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R+18, 0, Math.PI*2);
+      ctx.strokeStyle = ca(f.color, 0.55); ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // Comeback indicator ring
+    if (cb > 1.05) {
+      ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R + 22 + pulse*2, 0, Math.PI*2);
+      ctx.strokeStyle = ca('#ffffff', 0.18 + pulse * 0.12); ctx.lineWidth = 1;
       ctx.stroke();
     }
-  } else {
-    // Destroyed base (dim)
-    ctx.beginPath();
-    ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fill();
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
 
-  // Label
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  if (b.alive) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 13px "Courier New", monospace';
     ctx.fillText(f.name, b.tx, b.ty - 7);
     ctx.font = '11px "Courier New", monospace';
     ctx.fillText(Math.ceil(Math.max(0, b.hp)), b.tx, b.ty + 9);
   } else {
-    ctx.fillStyle = '#444';
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI*2);
+    ctx.fillStyle = '#161616'; ctx.fill();
+    ctx.strokeStyle = '#2e2e2e'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#3e3e3e';
     ctx.font = 'bold 12px "Courier New", monospace';
     ctx.fillText('撃墜', b.tx, b.ty);
   }
@@ -415,83 +809,79 @@ function drawBase(b) {
 
 function drawUnit(u) {
   const f = FDEF[u.faction];
-
-  // Trail
   for (let i = 0; i < u.trail.length; i++) {
     const t = u.trail[i];
-    const a = (i / u.trail.length) * 0.35;
-    const r = UNIT_R * 0.5 * (i / u.trail.length);
     ctx.beginPath();
-    ctx.arc(t.x, t.y, Math.max(0.5, r), 0, Math.PI * 2);
-    ctx.fillStyle = colorAlpha(f.color, a);
+    ctx.arc(t.x, t.y, Math.max(0.5, UNIT_R*0.5*(i/u.trail.length)), 0, Math.PI*2);
+    ctx.fillStyle = ca(f.color, (i/u.trail.length)*0.32);
     ctx.fill();
   }
-
-  // Unit glow
   ctx.save();
-  ctx.shadowColor = f.glow;
-  ctx.shadowBlur  = u.fighting ? 14 : 6;
-
-  // Unit circle
-  ctx.beginPath();
-  ctx.arc(u.x, u.y, UNIT_R, 0, Math.PI * 2);
-  ctx.fillStyle = u.fighting ? f.glow : f.color;
-  ctx.fill();
+  ctx.shadowColor = f.glow; ctx.shadowBlur = u.fighting ? 14 : 6;
+  ctx.beginPath(); ctx.arc(u.x, u.y, UNIT_R, 0, Math.PI*2);
+  ctx.fillStyle = u.fighting ? f.glow : f.color; ctx.fill();
   ctx.restore();
 
-  // HP bar
-  const hRatio = u.hp / UNIT_HP;
-  const bw = UNIT_R * 2.4;
-  const bx = u.x - bw / 2;
-  const by = u.y - UNIT_R - 5;
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(bx, by, bw, 2.5);
-  ctx.fillStyle = hRatio > 0.5 ? '#2ecc71' : hRatio > 0.25 ? '#f39c12' : '#e74c3c';
-  ctx.fillRect(bx, by, bw * hRatio, 2.5);
+  const hr = u.hp / u.maxHp;
+  const bw = UNIT_R * 2.4, bx = u.x - bw/2, by = u.y - UNIT_R - 5;
+  ctx.fillStyle = '#111'; ctx.fillRect(bx, by, bw, 2.5);
+  ctx.fillStyle = hr > 0.5 ? '#2ecc71' : hr > 0.25 ? '#f39c12' : '#e74c3c';
+  ctx.fillRect(bx, by, bw * hr, 2.5);
 }
 
 function drawParticles() {
   particles.forEach(p => {
     ctx.globalAlpha = p.life * p.life;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2);
+    ctx.fillStyle = p.color; ctx.fill();
   });
   ctx.globalAlpha = 1;
 }
 
-function updateScoreboard() {
-  const sb = document.getElementById('scoreboard');
-  sb.innerHTML = bases.map(b => {
-    const f   = FDEF[b.id];
-    const pct = Math.max(0, Math.round(b.hp / BASE_HP * 100));
-    const cnt = units.filter(u => u.faction === b.id).length;
-    return `<div class="score-item" style="background:${f.color}22;border:1.5px solid ${f.color};color:${f.color}">
-      ${f.name} ${b.alive ? pct + '% ×' + cnt : '撃墜'}
-    </div>`;
-  }).join('');
-  document.getElementById('ui-units').textContent = units.length;
-  document.getElementById('ui-parts').textContent = particles.length;
+function drawFloats() {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  floats.forEach(t => {
+    ctx.globalAlpha = t.life * t.life;
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.fillStyle = t.color;
+    ctx.fillText(t.text, t.x, t.y);
+  });
+  ctx.globalAlpha = 1;
 }
 
-// ── Main loop ──────────────────────────────────────────────
+// ── Main loop ─────────────────────────────────────────────────
 function loop() {
   update();
 
-  // Draw
-  ctx.fillStyle = '#0a0a0a';
-  ctx.fillRect(0, 0, W, H);
+  const sx = shakeF > 0 ? (Math.random()-0.5)*9 : 0;
+  const sy = shakeF > 0 ? (Math.random()-0.5)*9 : 0;
+
+  ctx.save();
+  if (shakeF > 0) ctx.translate(sx, sy);
+  ctx.fillStyle = '#0a0a0a'; ctx.fillRect(-12, -12, W+24, H+24);
   drawGrid();
   drawParticles();
   bases.forEach(drawBase);
   units.forEach(drawUnit);
+  drawFloats();
+  ctx.restore();
 
-  updateScoreboard();
+  if (frame % HIST_SAMPLE === 0) drawHistory();
+
+  document.getElementById('ui-units').textContent = units.length;
+  document.getElementById('ui-parts').textContent = particles.length;
+  document.getElementById('ui-frame').textContent = frame;
+
   requestAnimationFrame(loop);
 }
 
-document.getElementById('restart').addEventListener('click', init);
+document.getElementById('btn-restart').addEventListener('click', () => {
+  currentSeed = Math.floor(Math.random() * 99999) + 1;
+  history.replaceState(null, '', '?seed=' + currentSeed);
+  document.getElementById('seed-val').textContent = currentSeed;
+  playerFaction = -1;
+  init();
+});
 
 init();
 loop();
