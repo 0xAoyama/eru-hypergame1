@@ -3,1446 +3,179 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HYPER SURVIVORS</title>
+<title>HYPER GAMES</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; overflow: hidden; }
 body {
   background: #08080f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   color: #ccc;
-  user-select: none;
+  padding: 40px 20px;
 }
-
-/* ── 2-column layout ── */
-#app {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-}
-#game-col {
-  flex: 1;
-  position: relative;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-canvas { display: block; flex: 1; width: 100%; }
-
-#side-panel {
-  width: 320px;
-  background: #0c0c16;
-  border-left: 1px solid #1a1a2a;
-  overflow-y: auto;
-  padding: 0;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Top bar ── */
-#top-bar {
-  position: absolute; top: 0; left: 0; right: 0;
-  display: flex; align-items: center; gap: 14px;
-  padding: 10px 18px;
-  background: rgba(0,0,0,0.65);
-  backdrop-filter: blur(6px);
-  z-index: 10;
-  font-size: 14px;
-}
-#timer { font-size: 26px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; min-width: 70px; }
-#wave-info { color: #f0c040; font-weight: 600; }
-#kill-count { color: #aaa; margin-left: auto; }
-#level-info { color: #7bf; font-weight: 600; }
-#mode-indicator {
-  font-size: 11px; padding: 2px 8px; border-radius: 4px;
-  font-weight: 700; letter-spacing: 1px;
-}
-#mode-indicator.auto { background: rgba(80,200,120,0.2); color: #5c8; }
-#mode-indicator.manual { background: rgba(80,160,255,0.2); color: #4af; }
-
-#xp-bar-bg {
-  position: absolute; top: 50px; left: 0; right: 0;
-  height: 6px; background: rgba(255,255,255,0.06); z-index: 10;
-}
-#xp-bar-fill { height: 100%; background: linear-gradient(90deg, #4af, #7df); width: 0%; transition: width 0.15s; }
-
-/* ── Bottom HUD ── */
-#bottom-hud {
-  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
-  z-index: 10; pointer-events: none; text-align: center;
-}
-#hp-bar-wrap { width: min(400px, 70vw); margin: 0 auto 6px; }
-#hp-label { font-size: 12px; color: #aaa; margin-bottom: 3px; }
-#hp-bar-bg {
-  height: 12px; background: rgba(255,255,255,0.08); border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.1); overflow: hidden;
-}
-#hp-bar-fill {
-  height: 100%; border-radius: 6px; width: 100%; transition: width 0.2s;
-}
-#weapon-icons { display: flex; gap: 6px; justify-content: center; }
-.weapon-icon {
-  width: 40px; height: 40px; border-radius: 8px;
-  background: rgba(0,0,0,0.65); border: 1.5px solid rgba(255,255,255,0.15);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; backdrop-filter: blur(4px);
-  position: relative;
-}
-.weapon-icon .wi-lvl {
-  position: absolute; bottom: -2px; right: -2px;
-  font-size: 9px; background: #222; color: #7bf;
-  padding: 0 3px; border-radius: 3px; font-weight: 700;
-}
-
-/* ── Side panel sections ── */
-.sp-section {
-  padding: 14px 16px;
-  border-bottom: 1px solid #151520;
-}
-.sp-section:last-child { border-bottom: none; }
-.sp-title {
-  font-size: 12px; font-weight: 700; color: #667;
-  letter-spacing: 2px; text-transform: uppercase;
-  margin-bottom: 10px;
-}
-.sp-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  margin-bottom: 8px; font-size: 13px; line-height: 1.5;
-}
-.sp-row:last-child { margin-bottom: 0; }
-.sp-icon { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center; }
-.sp-label { font-weight: 600; color: #ddd; }
-.sp-desc { color: #888; font-size: 12px; }
-.sp-color-dot {
-  display: inline-block; width: 10px; height: 10px;
-  border-radius: 50%; margin-right: 6px; vertical-align: middle;
-}
-.sp-enemy-shape {
-  display: inline-block; width: 14px; height: 14px;
-  margin-right: 6px; vertical-align: middle;
-}
-.sp-stat-bar {
-  display: flex; gap: 2px; margin-top: 2px;
-}
-.sp-stat-pip {
-  width: 8px; height: 6px; border-radius: 1px;
-}
-.sp-stat-pip.on { background: currentColor; opacity: 0.8; }
-.sp-stat-pip.off { background: #1a1a2a; }
-.sp-key {
-  display: inline-block; padding: 1px 6px; background: #1a1a28;
-  border: 1px solid #2a2a3a; border-radius: 4px;
-  font-size: 11px; color: #aaa; font-family: monospace;
-  margin: 0 2px;
-}
-.sp-badge {
-  display: inline-block; padding: 1px 6px; border-radius: 4px;
-  font-size: 10px; font-weight: 700; letter-spacing: 1px;
-}
-.sp-live-stat {
-  font-variant-numeric: tabular-nums;
-  color: #999;
-  font-size: 12px;
-}
-
-/* ── Overlays ── */
-.overlay {
-  position: absolute; inset: 0;
-  display: none; align-items: center; justify-content: center;
-  flex-direction: column; gap: 16px; z-index: 100;
-}
-#upgrade-overlay { background: rgba(0,0,0,0.78); backdrop-filter: blur(10px); }
-#game-over-overlay { background: rgba(0,0,0,0.82); backdrop-filter: blur(12px); z-index: 200; }
-#start-overlay { background: rgba(6,6,14,0.96); backdrop-filter: blur(14px); z-index: 300; display: flex; }
-
-#upgrade-title { font-size: 30px; font-weight: 800; color: #ffe066; text-shadow: 0 0 24px rgba(255,224,102,0.4); }
-#upgrade-subtitle { font-size: 14px; color: #aaa; margin-bottom: 4px; }
-#upgrade-choices { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.upgrade-card {
-  width: 210px; padding: 20px 16px; background: rgba(16,16,30,0.92);
-  border: 2px solid rgba(255,255,255,0.1); border-radius: 14px;
-  cursor: pointer; transition: transform 0.15s, border-color 0.15s;
-  text-align: center;
-}
-.upgrade-card:hover { transform: translateY(-4px); border-color: #ffe066; }
-.uc-icon { font-size: 38px; margin-bottom: 8px; }
-.uc-name { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-.uc-desc { font-size: 12px; color: #999; line-height: 1.5; }
-.uc-level { font-size: 11px; color: #7bf; margin-top: 6px; }
-
-#go-title { font-size: 46px; font-weight: 800; color: #e44; text-shadow: 0 0 30px rgba(230,60,60,0.5); }
-#go-stats { font-size: 15px; color: #aaa; text-align: center; line-height: 2; }
-.btn-main {
-  padding: 13px 40px; font-size: 17px; cursor: pointer;
-  color: #fff; border: none; border-radius: 10px;
-  font-family: inherit; font-weight: 600;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.btn-main:hover { transform: translateY(-3px); }
-#start-btn { background: linear-gradient(135deg, #e44, #f80); }
-#start-btn:hover { box-shadow: 0 8px 30px rgba(230,60,60,0.4); }
-#go-restart { background: linear-gradient(135deg, #2a2a48, #1a1a30); border: 2px solid rgba(255,255,255,0.15); }
-#go-restart:hover { border-color: #ffe066; box-shadow: 0 6px 20px rgba(255,224,100,0.15); }
-
-#start-title {
-  font-size: clamp(38px, 7vw, 58px);
-  font-weight: 900; letter-spacing: 3px;
+h1 {
+  font-size: clamp(32px, 7vw, 52px);
+  font-weight: 900;
+  letter-spacing: 4px;
+  margin-bottom: 8px;
   background: linear-gradient(135deg, #f66, #fa0, #ff0, #4f4, #4af, #c4f);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-#start-sub { font-size: 15px; color: #667; text-align: center; line-height: 1.8; max-width: 400px; }
-
-/* ── Mobile ── */
-@media (max-width: 900px) {
-  #side-panel { display: none; }
-  .upgrade-card { width: 160px; padding: 14px 12px; }
+.subtitle {
+  font-size: 15px;
+  color: #556;
+  margin-bottom: 48px;
+  letter-spacing: 2px;
 }
-@media (max-width: 640px) {
-  .upgrade-card { width: 140px; padding: 10px 8px; }
-  .uc-icon { font-size: 28px; }
-  #top-bar { padding: 6px 10px; gap: 8px; font-size: 12px; }
-  #timer { font-size: 20px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  max-width: 1200px;
+  width: 100%;
+}
+.card {
+  background: #0c0c18;
+  border: 2px solid #1a1a2a;
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+}
+.card:nth-child(1) { border-color: #2a1a2a; }
+.card:nth-child(1):hover { border-color: #f66; }
+.card:nth-child(1)::before { background: linear-gradient(90deg, #f66, #fa0); }
+
+.card:nth-child(2) { border-color: #1a2a2a; }
+.card:nth-child(2):hover { border-color: #4e8; }
+.card:nth-child(2)::before { background: linear-gradient(90deg, #4e8, #4ee); }
+
+.card:nth-child(3) { border-color: #2a2a1a; }
+.card:nth-child(3):hover { border-color: #fa0; }
+.card:nth-child(3)::before { background: linear-gradient(90deg, #fa0, #f66); }
+
+.card:nth-child(4) { border-color: #1a1a2a; }
+.card:nth-child(4):hover { border-color: #4af; }
+.card:nth-child(4)::before { background: linear-gradient(90deg, #4af, #c4f); }
+
+.card-icon { font-size: 42px; }
+.card-title { font-size: 22px; font-weight: 700; color: #fff; }
+.card-genre {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: #667;
+}
+.card-desc { font-size: 13px; color: #889; line-height: 1.7; }
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.tag {
+  font-size: 10px; padding: 3px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px; color: #778;
+}
+.card-play {
+  margin-top: auto;
+  padding-top: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #556;
+  letter-spacing: 1px;
+  transition: color 0.2s;
+}
+.card:hover .card-play { color: #fff; }
+footer {
+  margin-top: 60px;
+  font-size: 12px;
+  color: #334;
 }
 </style>
 </head>
 <body>
 
-<div id="app">
-  <div id="game-col">
-    <canvas id="c"></canvas>
+<h1>HYPER GAMES</h1>
+<div class="subtitle">AUTO-PLAY ARCADE</div>
 
-    <div id="top-bar">
-      <div id="timer">0:00</div>
-      <div id="mode-indicator" class="auto">AUTO</div>
-      <div id="wave-info">WAVE 1</div>
-      <div id="level-info">Lv.1</div>
-      <div id="kill-count">KILLS: 0</div>
+<div class="grid">
+  <a class="card" href="survivors.html">
+    <div class="card-icon">⚔️</div>
+    <div class="card-genre">Roguelike Survivor</div>
+    <div class="card-title">HYPER SURVIVORS</div>
+    <div class="card-desc">Vampire Survivors inspired auto-battle. Weapons fire automatically, enemies swarm in waves. Level up and choose upgrades to build your loadout. Special rare enemies with unique mechanics.</div>
+    <div class="card-tags">
+      <span class="tag">Auto-Attack</span>
+      <span class="tag">Level Up</span>
+      <span class="tag">Wave Survival</span>
+      <span class="tag">Boss Fights</span>
     </div>
-    <div id="xp-bar-bg"><div id="xp-bar-fill"></div></div>
+    <div class="card-play">PLAY ▸</div>
+  </a>
 
-    <div id="bottom-hud">
-      <div id="weapon-icons"></div>
-      <div id="hp-bar-wrap">
-        <div id="hp-label">HP</div>
-        <div id="hp-bar-bg"><div id="hp-bar-fill"></div></div>
-      </div>
+  <a class="card" href="agario.html">
+    <div class="card-icon">🔬</div>
+    <div class="card-genre">AI Ecosystem</div>
+    <div class="card-title">CELL WARS</div>
+    <div class="card-desc">Agar.io inspired AI ecosystem. Watch cells eat, grow, split, and devour each other. Each AI has a unique personality. Click to follow your favorite, or take control yourself.</div>
+    <div class="card-tags">
+      <span class="tag">AI Agents</span>
+      <span class="tag">Spectate</span>
+      <span class="tag">Ecosystem</span>
+      <span class="tag">Leaderboard</span>
     </div>
+    <div class="card-play">PLAY ▸</div>
+  </a>
 
-    <div class="overlay" id="upgrade-overlay">
-      <div id="upgrade-title">LEVEL UP!</div>
-      <div id="upgrade-subtitle">Choose an upgrade</div>
-      <div id="upgrade-choices"></div>
+  <a class="card" href="pvz.html">
+    <div class="card-icon">🏰</div>
+    <div class="card-genre">Tower Defense</div>
+    <div class="card-title">LANE DEFENDERS</div>
+    <div class="card-desc">Plants vs Zombies inspired auto tower defense. AI places defenders across lanes to stop enemy waves. Watch the strategy unfold or intervene to place units yourself.</div>
+    <div class="card-tags">
+      <span class="tag">Auto-Place</span>
+      <span class="tag">Waves</span>
+      <span class="tag">Strategy</span>
+      <span class="tag">Boss Waves</span>
     </div>
-    <div class="overlay" id="game-over-overlay">
-      <div id="go-title">GAME OVER</div>
-      <div id="go-stats"></div>
-      <button class="btn-main" id="go-restart">RETRY</button>
-    </div>
-    <div class="overlay" id="start-overlay">
-      <div id="start-title">HYPER SURVIVORS</div>
-      <div id="start-sub">
-        Vampire Survivors inspired auto-battle roguelike<br>
-        WASD or arrow keys to move / touch drag on mobile<br>
-        Or just watch the AI play!
-      </div>
-      <button class="btn-main" id="start-btn">START</button>
-    </div>
-  </div>
+    <div class="card-play">PLAY ▸</div>
+  </a>
 
-  <div id="side-panel">
-    <div class="sp-section">
-      <div class="sp-title">How to Play</div>
-      <div class="sp-row"><div class="sp-icon">🎮</div><div><div class="sp-label">Move or Watch</div><div class="sp-desc"><span class="sp-key">W</span><span class="sp-key">A</span><span class="sp-key">S</span><span class="sp-key">D</span> or Arrow keys to move. Touch drag on mobile. Leave idle and AI takes over.</div></div></div>
-      <div class="sp-row"><div class="sp-icon">⚔️</div><div><div class="sp-label">Auto-Attack</div><div class="sp-desc">Weapons fire automatically at nearby enemies. Survive and collect XP gems to level up.</div></div></div>
-      <div class="sp-row"><div class="sp-icon">⬆️</div><div><div class="sp-label">Level Up</div><div class="sp-desc">Pick 1 of 3 upgrades: new weapons or passive boosts. Build your loadout wisely!</div></div></div>
-      <div class="sp-row"><div class="sp-icon">🌊</div><div><div class="sp-label">Waves</div><div class="sp-desc">Enemy waves get stronger over time. Boss appears every 5 waves. How long can you survive?</div></div></div>
+  <a class="card" href="factory.html">
+    <div class="card-icon">🏭</div>
+    <div class="card-genre">Factory Builder</div>
+    <div class="card-title">AUTO FACTORY</div>
+    <div class="card-desc">Factorio inspired autonomous factory builder. Watch AI construct conveyor belts and machines, routing resources into production lines. Items flow visually through the system.</div>
+    <div class="card-tags">
+      <span class="tag">AI Builder</span>
+      <span class="tag">Conveyor Belts</span>
+      <span class="tag">Production</span>
+      <span class="tag">Optimization</span>
     </div>
-
-    <div class="sp-section">
-      <div class="sp-title">Weapons</div>
-      <div class="sp-row"><div class="sp-icon">🔮</div><div><div class="sp-label">Orbit</div><div class="sp-desc">Spinning orbs deal contact damage around you. More orbs & bigger radius as level goes up.</div></div></div>
-      <div class="sp-row"><div class="sp-icon">✨</div><div><div class="sp-label">Magic Bolt</div><div class="sp-desc">Auto-fires homing projectiles at nearest enemy. Gains pierce and multi-shot at higher levels.</div></div></div>
-      <div class="sp-row"><div class="sp-icon">⚡</div><div><div class="sp-label">Lightning</div><div class="sp-desc">Strikes a random enemy in range. Chains to more targets as level increases.</div></div></div>
-      <div class="sp-row"><div class="sp-icon">🌟</div><div><div class="sp-label">Holy Aura</div><div class="sp-desc">Continuous damage to all enemies in a small radius. Consistent DPS, great for crowds.</div></div></div>
-      <div class="sp-row"><div class="sp-icon">💥</div><div><div class="sp-label">Shockwave</div><div class="sp-desc">Periodic explosion with knockback. Huge burst damage on a cooldown.</div></div></div>
-    </div>
-
-    <div class="sp-section">
-      <div class="sp-title">Enemies</div>
-      <div id="enemy-guide"></div>
-    </div>
-
-    <div class="sp-section">
-      <div class="sp-title">Passives</div>
-      <div class="sp-row"><div class="sp-icon">❤️</div><div><div class="sp-label">Vitality</div><div class="sp-desc">+20% Max HP per level</div></div></div>
-      <div class="sp-row"><div class="sp-icon">👟</div><div><div class="sp-label">Swiftness</div><div class="sp-desc">+12% Move Speed per level</div></div></div>
-      <div class="sp-row"><div class="sp-icon">⚔️</div><div><div class="sp-label">Might</div><div class="sp-desc">+15% All Damage per level</div></div></div>
-      <div class="sp-row"><div class="sp-icon">🛡️</div><div><div class="sp-label">Armor</div><div class="sp-desc">-10% Damage Taken per level</div></div></div>
-      <div class="sp-row"><div class="sp-icon">💚</div><div><div class="sp-label">Recovery</div><div class="sp-desc">+0.15 HP/sec regen per level</div></div></div>
-      <div class="sp-row"><div class="sp-icon">🧲</div><div><div class="sp-label">Magnet</div><div class="sp-desc">+30% XP pickup range per level</div></div></div>
-    </div>
-
-    <div class="sp-section" id="live-stats-section">
-      <div class="sp-title">Live Stats</div>
-      <div id="live-stats" class="sp-live-stat"></div>
-    </div>
-  </div>
+    <div class="card-play">PLAY ▸</div>
+  </a>
 </div>
 
-<script>
-'use strict';
+<footer>HYPER GAMES — All games run in your browser. No install required.</footer>
 
-// ── Audio Engine (Web Audio API) ─────────────────────────────
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let audioCtx;
-function ensureAudio() {
-  if (!audioCtx) audioCtx = new AudioCtx();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-
-function playTone(freq, dur, vol, type, ramp) {
-  if (!audioCtx) return;
-  const g = audioCtx.createGain();
-  const o = audioCtx.createOscillator();
-  o.type = type || 'sine';
-  o.frequency.value = freq;
-  g.gain.value = Math.min(vol || 0.08, 0.15);
-  if (ramp !== false) g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime + dur);
-}
-
-function playNoise(dur, vol) {
-  if (!audioCtx) return;
-  const bufSize = audioCtx.sampleRate * dur;
-  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i/bufSize);
-  const src = audioCtx.createBufferSource();
-  src.buffer = buf;
-  const g = audioCtx.createGain();
-  g.gain.value = Math.min(vol || 0.06, 0.12);
-  const filt = audioCtx.createBiquadFilter();
-  filt.type = 'highpass'; filt.frequency.value = 800;
-  src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
-  src.start();
-}
-
-const SFX = {
-  hit()       { playTone(200 + Math.random()*100, 0.06, 0.05, 'square'); },
-  kill()      { playTone(600, 0.08, 0.06, 'sine'); playTone(900, 0.1, 0.04, 'sine'); },
-  bossKill()  { playNoise(0.3, 0.1); playTone(150, 0.3, 0.08, 'sawtooth'); playTone(300, 0.2, 0.06, 'sine'); },
-  xpPickup()  { playTone(800 + Math.random()*400, 0.05, 0.03, 'sine'); },
-  levelUp()   { playTone(523, 0.1, 0.07, 'sine'); setTimeout(()=>playTone(659, 0.1, 0.07, 'sine'), 80); setTimeout(()=>playTone(784, 0.15, 0.08, 'sine'), 160); },
-  playerHit() { playNoise(0.08, 0.08); playTone(120, 0.12, 0.06, 'sawtooth'); },
-  lightning() { playNoise(0.12, 0.07); playTone(100, 0.08, 0.05, 'square'); },
-  wave()      { playNoise(0.15, 0.09); playTone(80, 0.2, 0.07, 'sawtooth'); },
-  bolt()      { playTone(1200, 0.04, 0.03, 'square'); },
-  select()    { playTone(660, 0.06, 0.05, 'sine'); },
-  waveStart() { playTone(220, 0.15, 0.06, 'sawtooth'); setTimeout(()=>playTone(330, 0.15, 0.06, 'sawtooth'), 120); },
-  specialSpawn(){ playTone(180, 0.2, 0.07, 'sawtooth'); playTone(240, 0.15, 0.05, 'square'); },
-};
-
-// ── Canvas ───────────────────────────────────────────────────
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-let W, H, camX = 0, camY = 0;
-const WORLD = 3000;
-
-function resize() {
-  const col = document.getElementById('game-col');
-  W = col.clientWidth; H = col.clientHeight;
-  canvas.width = W; canvas.height = H;
-}
-resize();
-window.addEventListener('resize', resize);
-
-// ── Input ────────────────────────────────────────────────────
-const keys = {};
-window.addEventListener('keydown', e => { keys[e.key] = true; keys[e.code] = true; });
-window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.code] = false; });
-
-let touchDir = { x: 0, y: 0 };
-let touching = false;
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault(); ensureAudio();
-  touching = true;
-  const t = e.touches[0];
-  touchDir.sx = t.clientX; touchDir.sy = t.clientY;
-  touchDir.x = 0; touchDir.y = 0;
-}, { passive: false });
-canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  const t = e.touches[0];
-  touchDir.x = t.clientX - touchDir.sx;
-  touchDir.y = t.clientY - touchDir.sy;
-}, { passive: false });
-canvas.addEventListener('touchend', () => { touching = false; touchDir.x = 0; touchDir.y = 0; });
-
-// ── Game State ───────────────────────────────────────────────
-let player, enemies, projectiles, particles, xpGems, damageTexts;
-let frame, gameTime, kills, gameOver, paused, started;
-let waveNum, waveTimer, bossAlive;
-let shakeF = 0, shakeMag = 0;
-let pendingLevelUps = 0;
-let playerControlled = false;
-let controlTimer = 0;
-let specialKills = { berserker: 0, necromancer: 0, golem: 0 };
-
-const PLAYER_SPEED = 3.5;
-const PLAYER_MAX_HP = 120;
-const PLAYER_R = 16;
-const XP_ATTRACT_RANGE = 100;
-const XP_COLLECT_RANGE = 28;
-
-// ── Weapon Definitions ──────────────────────────────────────
-const WEAPONS = {
-  orb:       { name: 'Orbit',      icon: '🔮', desc: 'Spinning orbs deal contact damage',          maxLvl: 8, baseDmg: 14, baseCount: 2, baseSpeed: 0.03, baseRadius: 80 },
-  bolt:      { name: 'Magic Bolt', icon: '✨', desc: 'Auto-fires projectiles at nearest enemy',    maxLvl: 8, baseDmg: 18, baseInterval: 45, baseSpeed: 8, basePierce: 1 },
-  lightning: { name: 'Lightning',  icon: '⚡', desc: 'Strikes random nearby enemies with chains',  maxLvl: 8, baseDmg: 30, baseInterval: 80, baseChain: 1, baseRange: 240 },
-  aura:      { name: 'Holy Aura',  icon: '🌟', desc: 'Damages all enemies in range continuously',  maxLvl: 8, baseDmg: 8,  baseInterval: 25, baseRange: 90 },
-  wave:      { name: 'Shockwave',  icon: '💥', desc: 'Periodic explosion with knockback',          maxLvl: 8, baseDmg: 35, baseInterval: 140, baseRange: 140 },
-};
-
-const PASSIVES = {
-  maxhp:   { name: 'Vitality',   icon: '❤️',  desc: '+20% Max HP',            maxLvl: 5 },
-  speed:   { name: 'Swiftness',  icon: '👟', desc: '+12% Move Speed',        maxLvl: 5 },
-  damage:  { name: 'Might',      icon: '⚔️',  desc: '+15% All Damage',        maxLvl: 5 },
-  armor:   { name: 'Armor',      icon: '🛡️',  desc: '-10% Damage Taken',      maxLvl: 5 },
-  regen:   { name: 'Recovery',   icon: '💚', desc: '+0.2 HP/sec',            maxLvl: 5 },
-  attract: { name: 'Magnet',     icon: '🧲', desc: '+30% XP Attract Range',  maxLvl: 3 },
-};
-
-let playerWeapons = {};
-let playerPassives = {};
-
-// ── Enemy Definitions ────────────────────────────────────────
-const ENEMY_INFO = [
-  { type: 'basic',      name: 'Grunt',       icon: '●',  color: '#c55',  shape: 'circle',   desc: 'Basic zombie. Slow and steady.' },
-  { type: 'fast',       name: 'Dasher',      icon: '▲',  color: '#e90',  shape: 'triangle', desc: 'Fast but fragile. Watch the flanks.' },
-  { type: 'swarm',      name: 'Swarmer',     icon: '·',   color: '#8c4',  shape: 'circle',   desc: 'Tiny, weak, but comes in huge numbers.' },
-  { type: 'tank',       name: 'Brute',       icon: '■',  color: '#86c',  shape: 'square',   desc: 'Heavy armor, slow, hits hard.' },
-  { type: 'boss',       name: 'Overlord',    icon: '◆',  color: '#f5b',  shape: 'octagon',  desc: 'Massive boss. Every 5 waves. Drops huge XP.' },
-  { type: 'berserker',  name: 'Berserker',   icon: '★',  color: '#f44',  shape: 'star',     desc: 'RARE: Gets faster as HP drops. Explodes on death!' },
-  { type: 'necromancer',name: 'Necromancer',  icon: '☠',  color: '#a4f',  shape: 'diamond',  desc: 'RARE: Summons minion skulls while alive.' },
-  { type: 'golem',      name: 'Crystal Golem',icon: '◈', color: '#4ee',  shape: 'hexagon',  desc: 'RARE: Immune to projectiles. Drops massive XP!' },
-];
-
-function enemyDef(type, wave) {
-  const s = 1 + wave * 0.09;
-  const defs = {
-    basic:      { hp: 20*s, speed: 1.6,  dmg: 10, r: 14, color: '#c55',  xp: 1,  score: 10 },
-    fast:       { hp: 10*s, speed: 2.7,  dmg: 7,  r: 12, color: '#e90',  xp: 1,  score: 15 },
-    tank:       { hp: 80*s, speed: 0.9,  dmg: 18, r: 22, color: '#86c',  xp: 4,  score: 25 },
-    swarm:      { hp: 6*s,  speed: 2.4,  dmg: 5,  r: 8,  color: '#8c4',  xp: 1,  score: 5 },
-    boss:       { hp: 400*s,speed: 1.1,  dmg: 28, r: 40, color: '#f5b',  xp: 40, score: 200 },
-    berserker:  { hp: 50*s, speed: 1.8,  dmg: 14, r: 18, color: '#f44',  xp: 8,  score: 60 },
-    necromancer:{ hp: 70*s, speed: 1.0,  dmg: 10, r: 20, color: '#a4f',  xp: 10, score: 80 },
-    golem:      { hp: 120*s,speed: 0.6,  dmg: 20, r: 26, color: '#4ee',  xp: 15, score: 100 },
-    skull:      { hp: 8*s,  speed: 2.8,  dmg: 6,  r: 8,  color: '#c8f',  xp: 1,  score: 5 },
-  };
-  return { ...defs[type], type };
-}
-
-// Build enemy guide
-(function buildEnemyGuide() {
-  const el = document.getElementById('enemy-guide');
-  el.innerHTML = ENEMY_INFO.map(e => {
-    const isRare = ['berserker','necromancer','golem'].includes(e.type);
-    return `<div class="sp-row">
-      <div class="sp-icon" style="color:${e.color}">${e.icon}</div>
-      <div><div class="sp-label">${e.name} ${isRare ? '<span class="sp-badge" style="background:rgba(255,100,100,0.2);color:#f88">RARE</span>' : ''}</div>
-      <div class="sp-desc">${e.desc}</div></div>
-    </div>`;
-  }).join('');
-})();
-
-// ── Helpers ──────────────────────────────────────────────────
-function dist(a, b) { const dx = b.x-a.x, dy = b.y-a.y; return Math.sqrt(dx*dx+dy*dy); }
-function angle(a, b) { return Math.atan2(b.y-a.y, b.x-a.x); }
-function lerp(a, b, t) { return a + (b-a) * t; }
-function rnd(lo, hi) { return lo + Math.random() * (hi - lo); }
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function getPlayerStats() {
-  const dmgMult = 1 + (playerPassives.damage || 0) * 0.15;
-  const spdMult = 1 + (playerPassives.speed || 0) * 0.12;
-  const armorMult = 1 - (playerPassives.armor || 0) * 0.10;
-  const maxHp = PLAYER_MAX_HP * (1 + (playerPassives.maxhp || 0) * 0.20);
-  const regenVal = (playerPassives.regen || 0) * 0.2;
-  const attractRange = XP_ATTRACT_RANGE * (1 + (playerPassives.attract || 0) * 0.30);
-  return { dmgMult, spdMult, armorMult, maxHp, regen: regenVal, attractRange };
-}
-
-// ── Particles / VFX ──────────────────────────────────────────
-function burst(x, y, color, n, spd, size) {
-  for (let i = 0; i < n && particles.length < 2000; i++) {
-    const a = rnd(0, Math.PI*2), s = rnd(0.5, spd);
-    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
-      life: 1, decay: rnd(0.012, 0.04), color, r: rnd(2, size || 5) });
-  }
-}
-
-function addDmgText(x, y, text, color, big) {
-  damageTexts.push({ x, y, text, color, life: 1, vy: -1.8, big: big || false });
-}
-
-function triggerShake(frames, mag) { shakeF = Math.max(shakeF, frames); shakeMag = Math.max(shakeMag, mag || 5); }
-
-// ── XP & Leveling ────────────────────────────────────────────
-function getXpToLevel(level) { return Math.floor(5 + level * 4 + level * level * 0.5); }
-
-function addXp(amount) {
-  player.xp += amount;
-  SFX.xpPickup();
-  while (player.xp >= player.xpNext) {
-    player.xp -= player.xpNext;
-    player.level++;
-    player.xpNext = getXpToLevel(player.level);
-    pendingLevelUps++;
-    SFX.levelUp();
-  }
-  if (pendingLevelUps > 0 && !paused) showUpgradeMenu();
-}
-
-function showUpgradeMenu() {
-  paused = true;
-  pendingLevelUps--;
-  const choices = generateUpgradeChoices(3);
-  const el = document.getElementById('upgrade-choices');
-  el.innerHTML = '';
-  choices.forEach(c => {
-    const card = document.createElement('div');
-    card.className = 'upgrade-card';
-    const currentLvl = c.isWeapon ? (playerWeapons[c.key]?.level || 0) : (playerPassives[c.key] || 0);
-    card.innerHTML = `
-      <div class="uc-icon">${c.icon}</div>
-      <div class="uc-name">${c.name}</div>
-      <div class="uc-desc">${c.desc}</div>
-      <div class="uc-level">Lv.${currentLvl} → Lv.${currentLvl + 1}</div>
-    `;
-    card.addEventListener('click', () => { SFX.select(); applyUpgrade(c); });
-    el.appendChild(card);
-  });
-  document.getElementById('upgrade-overlay').style.display = 'flex';
-}
-
-function generateUpgradeChoices(n) {
-  const pool = [];
-  for (const [key, w] of Object.entries(WEAPONS)) {
-    const lvl = playerWeapons[key]?.level || 0;
-    if (lvl < w.maxLvl) pool.push({ key, name: w.name, icon: w.icon, desc: w.desc, isWeapon: true });
-  }
-  for (const [key, p] of Object.entries(PASSIVES)) {
-    const lvl = playerPassives[key] || 0;
-    if (lvl < p.maxLvl) pool.push({ key, name: p.name, icon: p.icon, desc: p.desc, isWeapon: false });
-  }
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, n);
-}
-
-function applyUpgrade(choice) {
-  if (choice.isWeapon) {
-    if (!playerWeapons[choice.key]) playerWeapons[choice.key] = { level: 1, timer: 0, angle: 0 };
-    else playerWeapons[choice.key].level++;
-  } else {
-    playerPassives[choice.key] = (playerPassives[choice.key] || 0) + 1;
-    if (choice.key === 'maxhp') {
-      const stats = getPlayerStats();
-      player.hp = Math.min(player.hp + 24, stats.maxHp);
-    }
-  }
-  document.getElementById('upgrade-overlay').style.display = 'none';
-  updateWeaponIcons();
-  if (pendingLevelUps > 0) setTimeout(() => showUpgradeMenu(), 200);
-  else paused = false;
-}
-
-function updateWeaponIcons() {
-  const el = document.getElementById('weapon-icons');
-  el.innerHTML = Object.entries(playerWeapons).map(([k, w]) =>
-    `<div class="weapon-icon" title="${WEAPONS[k].name} Lv.${w.level}">${WEAPONS[k].icon}<span class="wi-lvl">${w.level}</span></div>`
-  ).join('');
-}
-
-// ── Spawn Enemies ────────────────────────────────────────────
-function spawnWave() {
-  waveNum++;
-  waveTimer = 0;
-  SFX.waveStart();
-
-  addDmgText(player.x, player.y - 60, `WAVE ${waveNum}`, '#f0c040', true);
-
-  const count = Math.min(10 + waveNum * 3, 65);
-  const types = ['basic'];
-  if (waveNum >= 2) types.push('fast');
-  if (waveNum >= 3) types.push('swarm', 'swarm');
-  if (waveNum >= 4) types.push('tank');
-  if (waveNum >= 5) types.push('fast', 'swarm');
-
-  for (let i = 0; i < count; i++) {
-    const a = rnd(0, Math.PI * 2);
-    const d = rnd(450, 650);
-    const type = types[Math.floor(Math.random() * types.length)];
-    const def = enemyDef(type, waveNum);
-    enemies.push({
-      ...def, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d,
-      maxHp: def.hp, flashTimer: 0, hitCooldown: 0, spawnTimer: 0,
-    });
-  }
-
-  // Special enemies (wave 3+)
-  if (waveNum >= 3) {
-    const specials = ['berserker', 'necromancer', 'golem'];
-    for (const stype of specials) {
-      const chance = stype === 'berserker' ? 0.35 : stype === 'necromancer' ? 0.25 : 0.20;
-      const maxCount = waveNum >= 8 ? 2 : 1;
-      for (let i = 0; i < maxCount; i++) {
-        if (Math.random() < chance + waveNum * 0.02) {
-          const a = rnd(0, Math.PI * 2);
-          const def = enemyDef(stype, waveNum);
-          enemies.push({
-            ...def, x: player.x + Math.cos(a) * 550, y: player.y + Math.sin(a) * 550,
-            maxHp: def.hp, flashTimer: 0, hitCooldown: 0, spawnTimer: 0,
-          });
-          SFX.specialSpawn();
-          addDmgText(player.x, player.y - 90, `${stype.toUpperCase()} INCOMING!`, def.color, true);
-        }
-      }
-    }
-  }
-
-  // Boss every 5 waves
-  if (waveNum % 5 === 0) {
-    const a = rnd(0, Math.PI * 2);
-    const def = enemyDef('boss', waveNum);
-    enemies.push({
-      ...def, x: player.x + Math.cos(a) * 550, y: player.y + Math.sin(a) * 550,
-      maxHp: def.hp, flashTimer: 0, hitCooldown: 0, spawnTimer: 0,
-    });
-    bossAlive = true;
-    addDmgText(player.x, player.y - 120, 'BOSS INCOMING!', '#f5b', true);
-  }
-}
-
-function ambientSpawn() {
-  if (enemies.length > 180) return;
-  const maxAmbient = Math.min(3 + Math.floor(waveNum * 0.5), 10);
-  for (let i = 0; i < maxAmbient; i++) {
-    const a = rnd(0, Math.PI * 2);
-    const d = rnd(450, 600);
-    const types = ['basic', 'swarm'];
-    if (waveNum >= 3) types.push('fast');
-    const type = types[Math.floor(Math.random() * types.length)];
-    const def = enemyDef(type, waveNum);
-    enemies.push({
-      ...def, x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d,
-      maxHp: def.hp, flashTimer: 0, hitCooldown: 0, spawnTimer: 0,
-    });
-  }
-}
-
-// ── Weapon Logic ─────────────────────────────────────────────
-function updateWeapons() {
-  const stats = getPlayerStats();
-
-  // Orb
-  if (playerWeapons.orb) {
-    const w = playerWeapons.orb;
-    const count = w.level + WEAPONS.orb.baseCount - 1;
-    const dmg = WEAPONS.orb.baseDmg * (1 + w.level * 0.3) * stats.dmgMult;
-    const radius = WEAPONS.orb.baseRadius + w.level * 10;
-    const speed = WEAPONS.orb.baseSpeed + w.level * 0.003;
-    w.angle += speed;
-    for (let i = 0; i < count; i++) {
-      const a = w.angle + (Math.PI * 2 / count) * i;
-      const ox = player.x + Math.cos(a) * radius;
-      const oy = player.y + Math.sin(a) * radius;
-      enemies.forEach(e => {
-        if (e.type === 'golem') return; // immune to contact? no, orbs are melee
-        if (dist({ x: ox, y: oy }, e) < e.r + 14) {
-          if (e.hitCooldown <= 0) {
-            damageEnemy(e, dmg, ox, oy);
-            e.hitCooldown = 12;
-          }
-        }
-      });
-    }
-  }
-
-  // Bolt
-  if (playerWeapons.bolt) {
-    const w = playerWeapons.bolt;
-    const interval = Math.max(12, WEAPONS.bolt.baseInterval - w.level * 4);
-    w.timer++;
-    if (w.timer >= interval) {
-      w.timer = 0;
-      const targets = enemies.filter(e => dist(player, e) < 400).sort((a, b) => dist(player, a) - dist(player, b));
-      const shotCount = Math.min(1 + Math.floor(w.level / 3), 3);
-      for (let i = 0; i < Math.min(shotCount, targets.length); i++) {
-        const t = targets[i];
-        const a = angle(player, t);
-        const dmg = WEAPONS.bolt.baseDmg * (1 + w.level * 0.25) * stats.dmgMult;
-        const pierce = WEAPONS.bolt.basePierce + Math.floor(w.level / 2);
-        projectiles.push({
-          x: player.x, y: player.y,
-          vx: Math.cos(a) * WEAPONS.bolt.baseSpeed, vy: Math.sin(a) * WEAPONS.bolt.baseSpeed,
-          dmg, pierce, r: 5 + w.level * 0.5, color: '#4af', life: 100, hit: new Set(),
-        });
-        SFX.bolt();
-      }
-    }
-  }
-
-  // Lightning
-  if (playerWeapons.lightning) {
-    const w = playerWeapons.lightning;
-    const interval = Math.max(25, WEAPONS.lightning.baseInterval - w.level * 7);
-    w.timer++;
-    if (w.timer >= interval) {
-      w.timer = 0;
-      const range = WEAPONS.lightning.baseRange + w.level * 30;
-      const chains = WEAPONS.lightning.baseChain + Math.floor(w.level / 2);
-      const dmg = WEAPONS.lightning.baseDmg * (1 + w.level * 0.3) * stats.dmgMult;
-      let targets = enemies.filter(e => dist(player, e) < range);
-      if (targets.length > 0) {
-        let current = targets[Math.floor(Math.random() * targets.length)];
-        const struck = new Set();
-        let prev = { x: player.x, y: player.y };
-        SFX.lightning();
-        for (let c = 0; c < chains && current; c++) {
-          struck.add(current);
-          damageEnemy(current, dmg * (c === 0 ? 1 : 0.7), current.x, current.y);
-          lightningBolts.push({ x1: prev.x, y1: prev.y, x2: current.x, y2: current.y, color: '#aaf', life: 14 });
-          burst(current.x, current.y, '#88f', 10, 4, 4);
-          triggerShake(4, 2);
-          prev = current;
-          targets = enemies.filter(e => !struck.has(e) && dist(current, e) < range * 0.7);
-          current = targets.length > 0 ? targets[Math.floor(Math.random() * targets.length)] : null;
-        }
-      }
-    }
-  }
-
-  // Aura
-  if (playerWeapons.aura) {
-    const w = playerWeapons.aura;
-    const interval = Math.max(8, WEAPONS.aura.baseInterval - w.level * 2);
-    w.timer++;
-    if (w.timer >= interval) {
-      w.timer = 0;
-      const range = WEAPONS.aura.baseRange + w.level * 12;
-      const dmg = WEAPONS.aura.baseDmg * (1 + w.level * 0.25) * stats.dmgMult;
-      enemies.forEach(e => {
-        if (dist(player, e) < range + e.r) damageEnemy(e, dmg, e.x, e.y);
-      });
-    }
-  }
-
-  // Shockwave
-  if (playerWeapons.wave) {
-    const w = playerWeapons.wave;
-    const interval = Math.max(50, WEAPONS.wave.baseInterval - w.level * 10);
-    w.timer++;
-    if (w.timer >= interval) {
-      w.timer = 0;
-      const range = WEAPONS.wave.baseRange + w.level * 18;
-      const dmg = WEAPONS.wave.baseDmg * (1 + w.level * 0.35) * stats.dmgMult;
-      enemies.forEach(e => {
-        if (dist(player, e) < range + e.r) {
-          damageEnemy(e, dmg, e.x, e.y);
-          const a = angle(player, e);
-          e.x += Math.cos(a) * 40;
-          e.y += Math.sin(a) * 40;
-        }
-      });
-      burst(player.x, player.y, '#fa4', 40, 8, 6);
-      triggerShake(10, 5);
-      SFX.wave();
-    }
-  }
-}
-
-let lightningBolts = [];
-
-function damageEnemy(e, dmg, x, y) {
-  e.hp -= dmg;
-  e.flashTimer = 6;
-  addDmgText(x + rnd(-12, 12), y - e.r, Math.ceil(dmg).toString(), '#fff');
-  SFX.hit();
-
-  if (e.hp <= 0) {
-    kills++;
-    burst(e.x, e.y, e.color, 15, 5, 5);
-    SFX.kill();
-
-    // Special death effects
-    if (e.type === 'berserker') {
-      // Explodes, damages nearby enemies too
-      burst(e.x, e.y, '#f84', 40, 10, 7);
-      burst(e.x, e.y, '#ff0', 20, 6, 5);
-      triggerShake(12, 6);
-      addDmgText(e.x, e.y - 20, 'BOOM!', '#f84', true);
-      enemies.forEach(other => {
-        if (other !== e && other.hp > 0 && dist(e, other) < 100) {
-          other.hp -= 40;
-          other.flashTimer = 10;
-        }
-      });
-      specialKills.berserker++;
-    }
-    if (e.type === 'necromancer') {
-      specialKills.necromancer++;
-      burst(e.x, e.y, '#a4f', 30, 8, 6);
-      addDmgText(e.x, e.y - 20, 'BANISHED!', '#a4f', true);
-    }
-    if (e.type === 'golem') {
-      specialKills.golem++;
-      burst(e.x, e.y, '#4ee', 50, 10, 8);
-      burst(e.x, e.y, '#fff', 25, 6, 4);
-      triggerShake(15, 7);
-      addDmgText(e.x, e.y - 20, 'SHATTERED!', '#4ee', true);
-    }
-
-    if (e.type === 'boss') {
-      SFX.bossKill();
-      triggerShake(24, 10);
-      burst(e.x, e.y, '#fff', 60, 12, 8);
-      burst(e.x, e.y, e.color, 40, 8, 6);
-      bossAlive = false;
-      addDmgText(e.x, e.y - 30, 'BOSS DOWN!', '#ffe066', true);
-    }
-
-    // Drop XP gems
-    const gemCount = e.type === 'boss' ? 15 : e.type === 'golem' ? 10 : (e.xp >= 4 ? 4 : (e.xp >= 2 ? 2 : 1));
-    const xpEach = e.xp / gemCount;
-    for (let i = 0; i < gemCount; i++) {
-      xpGems.push({
-        x: e.x + rnd(-20, 20), y: e.y + rnd(-20, 20),
-        xp: xpEach,
-        r: xpEach >= 5 ? 8 : (xpEach >= 2 ? 6 : 4),
-        color: xpEach >= 5 ? '#f4a' : (xpEach >= 2 ? '#4af' : '#4f4'),
-        life: 700,
-      });
-    }
-  }
-}
-
-// ── AI Movement ──────────────────────────────────────────────
-function aiMove() {
-  let dx = 0, dy = 0;
-  let threatX = 0, threatY = 0, threatCount = 0;
-  enemies.forEach(e => {
-    const d = dist(player, e);
-    if (d < 150) {
-      const a = angle(e, player);
-      const force = (150 - d) / 150;
-      threatX += Math.cos(a) * force;
-      threatY += Math.sin(a) * force;
-      threatCount++;
-    }
-  });
-
-  if (threatCount > 3) {
-    const mag = Math.sqrt(threatX*threatX + threatY*threatY) || 1;
-    dx = threatX / mag; dy = threatY / mag;
-  } else {
-    let nearest = null, nearDist = Infinity;
-    xpGems.forEach(g => { const d = dist(player, g); if (d < nearDist) { nearDist = d; nearest = g; }});
-    if (nearest && nearDist > XP_COLLECT_RANGE) {
-      const a = angle(player, nearest);
-      dx = Math.cos(a); dy = Math.sin(a);
-    } else if (enemies.length > 0) {
-      let ne = null, ned = Infinity;
-      enemies.forEach(e => { const d = dist(player, e); if (d < ned) { ned = d; ne = e; }});
-      if (ne) {
-        const a = angle(ne, player);
-        if (ned > 250) { dx = -Math.cos(a); dy = -Math.sin(a); }
-        else { dx = Math.cos(a + Math.PI * 0.4); dy = Math.sin(a + Math.PI * 0.4); }
-      }
-    }
-    if (threatCount > 0) {
-      const mag = Math.sqrt(threatX*threatX + threatY*threatY) || 1;
-      dx += (threatX / mag) * 0.7; dy += (threatY / mag) * 0.7;
-    }
-  }
-
-  const margin = 120;
-  if (player.x < -WORLD/2 + margin) dx += 0.5;
-  if (player.x > WORLD/2 - margin) dx -= 0.5;
-  if (player.y < -WORLD/2 + margin) dy += 0.5;
-  if (player.y > WORLD/2 - margin) dy -= 0.5;
-
-  const mag = Math.sqrt(dx*dx + dy*dy) || 1;
-  return { x: dx/mag, y: dy/mag };
-}
-
-// ── Init ─────────────────────────────────────────────────────
-function init() {
-  player = { x: 0, y: 0, hp: PLAYER_MAX_HP, level: 1, xp: 0, xpNext: getXpToLevel(1), invincible: 0 };
-  enemies = []; projectiles = []; particles = []; xpGems = []; damageTexts = [];
-  lightningBolts = [];
-  frame = 0; gameTime = 0; kills = 0; gameOver = false; paused = false;
-  waveNum = 0; waveTimer = 0; bossAlive = false;
-  shakeF = 0; shakeMag = 0; pendingLevelUps = 0;
-  playerControlled = false; controlTimer = 0;
-  specialKills = { berserker: 0, necromancer: 0, golem: 0 };
-  playerWeapons = {}; playerPassives = {};
-  playerWeapons.bolt = { level: 1, timer: 0, angle: 0 };
-  camX = -W/2; camY = -H/2;
-  updateWeaponIcons();
-  document.getElementById('game-over-overlay').style.display = 'none';
-  document.getElementById('upgrade-overlay').style.display = 'none';
-  spawnWave();
-}
-
-// ── Update ───────────────────────────────────────────────────
-function update() {
-  if (gameOver || paused) return;
-  frame++;
-  gameTime = frame / 60;
-  const stats = getPlayerStats();
-
-  // Player movement
-  let mdx = 0, mdy = 0;
-  if (keys['w'] || keys['W'] || keys['ArrowUp']) { mdy = -1; playerControlled = true; controlTimer = 0; }
-  if (keys['s'] || keys['S'] || keys['ArrowDown']) { mdy = 1; playerControlled = true; controlTimer = 0; }
-  if (keys['a'] || keys['A'] || keys['ArrowLeft']) { mdx = -1; playerControlled = true; controlTimer = 0; }
-  if (keys['d'] || keys['D'] || keys['ArrowRight']) { mdx = 1; playerControlled = true; controlTimer = 0; }
-  if (touching && (Math.abs(touchDir.x) > 10 || Math.abs(touchDir.y) > 10)) {
-    mdx = touchDir.x; mdy = touchDir.y; playerControlled = true; controlTimer = 0;
-  }
-
-  if (mdx === 0 && mdy === 0) {
-    controlTimer++;
-    if (controlTimer > 90) playerControlled = false;
-    if (!playerControlled) { const ai = aiMove(); mdx = ai.x; mdy = ai.y; }
-  }
-
-  const mmag = Math.sqrt(mdx*mdx + mdy*mdy) || 1;
-  const speed = PLAYER_SPEED * stats.spdMult;
-  player.x += (mdx/mmag) * speed;
-  player.y += (mdy/mmag) * speed;
-  player.x = clamp(player.x, -WORLD/2 + 20, WORLD/2 - 20);
-  player.y = clamp(player.y, -WORLD/2 + 20, WORLD/2 - 20);
-
-  if (player.invincible > 0) player.invincible--;
-  if (stats.regen > 0 && player.hp < stats.maxHp) player.hp = Math.min(stats.maxHp, player.hp + stats.regen / 60);
-
-  // Mode indicator
-  const modeEl = document.getElementById('mode-indicator');
-  if (playerControlled) { modeEl.textContent = 'MANUAL'; modeEl.className = 'manual'; }
-  else { modeEl.textContent = 'AUTO'; modeEl.className = 'auto'; }
-
-  // Waves
-  waveTimer++;
-  if (waveTimer >= 840 + waveNum * 50) spawnWave();
-  if (frame % 80 === 0) ambientSpawn();
-
-  // Special enemy behaviors
-  enemies.forEach(e => {
-    if (e.hp <= 0) return;
-    // Berserker: speed increases as HP drops
-    if (e.type === 'berserker') {
-      const hpRatio = e.hp / e.maxHp;
-      e.speed = enemyDef('berserker', waveNum).speed * (1 + (1 - hpRatio) * 2.0);
-    }
-    // Necromancer: summon skulls
-    if (e.type === 'necromancer') {
-      e.spawnTimer++;
-      if (e.spawnTimer >= 120) {
-        e.spawnTimer = 0;
-        for (let i = 0; i < 2; i++) {
-          const a = rnd(0, Math.PI * 2);
-          const def = enemyDef('skull', waveNum);
-          enemies.push({
-            ...def, x: e.x + Math.cos(a) * 30, y: e.y + Math.sin(a) * 30,
-            maxHp: def.hp, flashTimer: 0, hitCooldown: 0, spawnTimer: 0,
-          });
-          burst(e.x + Math.cos(a)*30, e.y + Math.sin(a)*30, '#c8f', 6, 3, 3);
-        }
-      }
-    }
-  });
-
-  updateWeapons();
-
-  // Projectiles
-  projectiles.forEach(p => {
-    p.x += p.vx; p.y += p.vy; p.life--;
-    enemies.forEach(e => {
-      if (p.pierce <= 0 || p.hit.has(e)) return;
-      if (e.type === 'golem') return; // Golem immune to projectiles
-      if (dist(p, e) < e.r + p.r) {
-        damageEnemy(e, p.dmg, e.x, e.y);
-        p.hit.add(e); p.pierce--;
-        burst(e.x, e.y, p.color, 6, 3, 3);
-      }
-    });
-  });
-  projectiles = projectiles.filter(p => p.life > 0 && p.pierce > 0);
-
-  // Enemies
-  enemies.forEach(e => {
-    if (e.hp <= 0) return;
-    const a = angle(e, player);
-    e.x += Math.cos(a) * e.speed;
-    e.y += Math.sin(a) * e.speed;
-    if (e.flashTimer > 0) e.flashTimer--;
-    if (e.hitCooldown > 0) e.hitCooldown--;
-
-    if (dist(e, player) < e.r + PLAYER_R && player.invincible <= 0) {
-      const dmg = e.dmg * stats.armorMult;
-      player.hp -= dmg;
-      player.invincible = 30;
-      addDmgText(player.x, player.y - 25, Math.ceil(dmg).toString(), '#f44');
-      burst(player.x, player.y, '#f44', 10, 4, 4);
-      triggerShake(6, 3);
-      SFX.playerHit();
-    }
-  });
-  enemies = enemies.filter(e => e.hp > 0);
-
-  // XP gems
-  xpGems.forEach(g => {
-    g.life--;
-    const d = dist(player, g);
-    if (d < stats.attractRange) {
-      const a = angle(g, player);
-      const pull = Math.min(10, (stats.attractRange - d) / stats.attractRange * 10);
-      g.x += Math.cos(a) * pull; g.y += Math.sin(a) * pull;
-    }
-    if (d < XP_COLLECT_RANGE) { addXp(g.xp); g.life = 0; }
-  });
-  xpGems = xpGems.filter(g => g.life > 0);
-
-  // Particles
-  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vx *= 0.95; p.vy *= 0.95; p.life -= p.decay; });
-  particles = particles.filter(p => p.life > 0);
-
-  damageTexts.forEach(t => { t.y += t.vy; t.life -= 0.02; });
-  damageTexts = damageTexts.filter(t => t.life > 0);
-
-  lightningBolts.forEach(b => b.life--);
-  lightningBolts = lightningBolts.filter(b => b.life > 0);
-
-  if (shakeF > 0) { shakeF--; if (shakeF === 0) shakeMag = 0; }
-
-  if (player.hp <= 0) {
-    gameOver = true;
-    burst(player.x, player.y, '#f44', 60, 10, 7);
-    burst(player.x, player.y, '#fff', 35, 8, 6);
-    triggerShake(30, 10);
-    SFX.playerHit();
-    showGameOver();
-  }
-
-  if (frame % 5 === 0) updateUI();
-}
-
-function showGameOver() {
-  const min = Math.floor(gameTime / 60);
-  const sec = Math.floor(gameTime % 60);
-  document.getElementById('go-stats').innerHTML =
-    `Time: ${min}:${sec.toString().padStart(2,'0')}<br>` +
-    `Wave: ${waveNum}<br>Kills: ${kills}<br>Level: ${player.level}<br>` +
-    `Weapons: ${Object.keys(playerWeapons).map(k => WEAPONS[k].icon + ' Lv.' + playerWeapons[k].level).join('  ')}` +
-    (specialKills.berserker + specialKills.necromancer + specialKills.golem > 0 ?
-      `<br>Specials: ${specialKills.berserker ? '★×' + specialKills.berserker + ' ' : ''}${specialKills.necromancer ? '☠×' + specialKills.necromancer + ' ' : ''}${specialKills.golem ? '◈×' + specialKills.golem : ''}` : '');
-  document.getElementById('game-over-overlay').style.display = 'flex';
-}
-
-function updateUI() {
-  const stats = getPlayerStats();
-  const min = Math.floor(gameTime / 60);
-  const sec = Math.floor(gameTime % 60);
-  document.getElementById('timer').textContent = `${min}:${sec.toString().padStart(2,'0')}`;
-  document.getElementById('wave-info').textContent = `WAVE ${waveNum}`;
-  document.getElementById('kill-count').textContent = `KILLS: ${kills}`;
-  document.getElementById('level-info').textContent = `Lv.${player.level}`;
-  document.getElementById('xp-bar-fill').style.width = (player.xp / player.xpNext * 100) + '%';
-
-  const hpPct = Math.max(0, player.hp) / stats.maxHp * 100;
-  document.getElementById('hp-bar-fill').style.width = hpPct + '%';
-  document.getElementById('hp-bar-fill').style.background =
-    hpPct > 50 ? 'linear-gradient(90deg, #2c6, #4e8)' :
-    hpPct > 25 ? 'linear-gradient(90deg, #e90, #fb4)' :
-    'linear-gradient(90deg, #d33, #f55)';
-  document.getElementById('hp-label').textContent = `HP: ${Math.ceil(Math.max(0, player.hp))} / ${Math.ceil(stats.maxHp)}`;
-
-  // Live stats in side panel
-  const liveEl = document.getElementById('live-stats');
-  if (liveEl) {
-    liveEl.innerHTML =
-      `Enemies: ${enemies.length}<br>` +
-      `Particles: ${particles.length}<br>` +
-      `DMG Mult: ${stats.dmgMult.toFixed(2)}x<br>` +
-      `SPD Mult: ${stats.spdMult.toFixed(2)}x<br>` +
-      `Armor: ${((1 - stats.armorMult) * 100).toFixed(0)}%<br>` +
-      `Regen: ${stats.regen.toFixed(1)}/s<br>` +
-      `XP Range: ${Math.round(stats.attractRange)}`;
-  }
-}
-
-// ── Drawing ──────────────────────────────────────────────────
-function drawShape(x, y, r, type, color, rotation) {
-  ctx.beginPath();
-  if (type === 'boss') {
-    for (let i = 0; i < 8; i++) {
-      const a = (Math.PI * 2 / 8) * i + (rotation || 0);
-      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  } else if (type === 'tank') {
-    const rr = r * 0.85;
-    ctx.rect(x - rr, y - rr, rr*2, rr*2);
-  } else if (type === 'fast') {
-    ctx.moveTo(x, y - r);
-    ctx.lineTo(x + r, y + r * 0.7);
-    ctx.lineTo(x - r, y + r * 0.7);
-    ctx.closePath();
-  } else if (type === 'berserker') {
-    // Star shape
-    for (let i = 0; i < 10; i++) {
-      const a = (Math.PI * 2 / 10) * i - Math.PI/2 + (rotation || 0);
-      const rad = i % 2 === 0 ? r : r * 0.5;
-      const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  } else if (type === 'necromancer') {
-    // Diamond
-    ctx.moveTo(x, y - r);
-    ctx.lineTo(x + r * 0.7, y);
-    ctx.lineTo(x, y + r);
-    ctx.lineTo(x - r * 0.7, y);
-    ctx.closePath();
-  } else if (type === 'golem') {
-    // Hexagon
-    for (let i = 0; i < 6; i++) {
-      const a = (Math.PI * 2 / 6) * i + (rotation || 0);
-      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  } else if (type === 'skull') {
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-  } else {
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-  }
-  ctx.fillStyle = color;
-  ctx.fill();
-}
-
-function draw() {
-  camX = lerp(camX, player.x - W/2, 0.1);
-  camY = lerp(camY, player.y - H/2, 0.1);
-
-  ctx.fillStyle = '#08080f';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.save();
-  if (shakeF > 0) ctx.translate(rnd(-shakeMag, shakeMag), rnd(-shakeMag, shakeMag));
-  ctx.translate(-camX, -camY);
-
-  // Grid
-  const gridSize = 80;
-  ctx.strokeStyle = '#10101a';
-  ctx.lineWidth = 1;
-  const startX = Math.floor(camX / gridSize) * gridSize;
-  const startY = Math.floor(camY / gridSize) * gridSize;
-  for (let x = startX; x < camX + W + gridSize; x += gridSize) {
-    ctx.beginPath(); ctx.moveTo(x, camY); ctx.lineTo(x, camY + H); ctx.stroke();
-  }
-  for (let y = startY; y < camY + H + gridSize; y += gridSize) {
-    ctx.beginPath(); ctx.moveTo(camX, y); ctx.lineTo(camX + W, y); ctx.stroke();
-  }
-
-  // World bounds
-  ctx.strokeStyle = '#2a1a2a';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(-WORLD/2, -WORLD/2, WORLD, WORLD);
-
-  // XP gems
-  xpGems.forEach(g => {
-    const pulse = 0.7 + 0.3 * Math.sin(frame * 0.08 + g.x);
-    ctx.save();
-    ctx.shadowColor = g.color; ctx.shadowBlur = 10 * pulse;
-    ctx.beginPath();
-    ctx.moveTo(g.x, g.y - g.r);
-    ctx.lineTo(g.x + g.r * 0.7, g.y);
-    ctx.lineTo(g.x, g.y + g.r);
-    ctx.lineTo(g.x - g.r * 0.7, g.y);
-    ctx.closePath();
-    ctx.fillStyle = g.color;
-    ctx.globalAlpha = pulse;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  });
-
-  // Particles
-  particles.forEach(p => {
-    ctx.globalAlpha = p.life * p.life;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
-    ctx.fillStyle = p.color; ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-
-  // Lightning bolts
-  lightningBolts.forEach(b => {
-    ctx.globalAlpha = b.life / 14;
-    ctx.strokeStyle = b.color;
-    ctx.lineWidth = 2 + b.life / 4;
-    ctx.shadowColor = b.color; ctx.shadowBlur = 18;
-    ctx.beginPath(); ctx.moveTo(b.x1, b.y1);
-    const dx = b.x2 - b.x1, dy = b.y2 - b.y1;
-    for (let i = 1; i <= 6; i++) {
-      const t = i / 6;
-      const jx = i < 6 ? rnd(-18, 18) : 0;
-      const jy = i < 6 ? rnd(-18, 18) : 0;
-      ctx.lineTo(b.x1 + dx * t + jx, b.y1 + dy * t + jy);
-    }
-    ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-  });
-
-  // Enemies
-  enemies.forEach(e => {
-    if (e.hp <= 0) return;
-    const sx = e.x - camX, sy = e.y - camY;
-    if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) return;
-
-    ctx.save();
-    if (e.flashTimer > 0) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 18; }
-
-    // Special enemy glow
-    const isSpecial = ['berserker','necromancer','golem'].includes(e.type);
-    if (isSpecial && e.flashTimer <= 0) {
-      ctx.shadowColor = e.color; ctx.shadowBlur = 14 + 6 * Math.sin(frame * 0.06);
-    }
-
-    const rotation = e.type === 'boss' ? frame * 0.01 :
-                     e.type === 'berserker' ? frame * 0.04 :
-                     e.type === 'golem' ? frame * 0.008 : 0;
-
-    const fillColor = e.flashTimer > 0 ? '#fff' : e.color;
-    drawShape(e.x, e.y, e.r, e.type, fillColor, rotation);
-
-    // Inner marking for specials
-    if (e.type === 'berserker' && e.flashTimer <= 0) {
-      drawShape(e.x, e.y, e.r * 0.4, 'berserker', '#ff8', rotation + 0.3);
-    }
-    if (e.type === 'necromancer' && e.flashTimer <= 0) {
-      ctx.fillStyle = '#d8f';
-      ctx.font = `bold ${e.r}px serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('☠', e.x, e.y + 1);
-    }
-    if (e.type === 'golem' && e.flashTimer <= 0) {
-      drawShape(e.x, e.y, e.r * 0.5, 'golem', '#8ff', rotation + 0.5);
-    }
-
-    ctx.restore();
-
-    // HP bars for big enemies
-    if (['tank','boss','berserker','necromancer','golem'].includes(e.type)) {
-      const bw = e.r * 2.5, bh = 4;
-      const bx = e.x - bw/2, by = e.y - e.r - 10;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-      ctx.fillStyle = '#222';
-      ctx.fillRect(bx, by, bw, bh);
-      ctx.fillStyle = e.color;
-      ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), bh);
-      if (isSpecial) {
-        ctx.strokeStyle = e.color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(bx - 1, by - 1, bw + 2, bh + 2);
-      }
-    }
-  });
-
-  // Projectiles
-  projectiles.forEach(p => {
-    ctx.save();
-    ctx.shadowColor = p.color; ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fillStyle = p.color; ctx.fill();
-    ctx.restore();
-  });
-
-  // Aura visual
-  if (playerWeapons.aura) {
-    const w = playerWeapons.aura;
-    const range = WEAPONS.aura.baseRange + w.level * 12;
-    const pulse = 0.1 + 0.06 * Math.sin(frame * 0.06);
-    ctx.beginPath(); ctx.arc(player.x, player.y, range, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 220, 80, ${pulse})`;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(255, 220, 80, ${pulse * 2.5})`;
-    ctx.lineWidth = 2; ctx.stroke();
-  }
-
-  // Orb visual
-  if (playerWeapons.orb) {
-    const w = playerWeapons.orb;
-    const count = w.level + WEAPONS.orb.baseCount - 1;
-    const radius = WEAPONS.orb.baseRadius + w.level * 10;
-    ctx.beginPath(); ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(120, 80, 255, 0.07)'; ctx.lineWidth = 14; ctx.stroke();
-    for (let i = 0; i < count; i++) {
-      const a = w.angle + (Math.PI * 2 / count) * i;
-      const ox = player.x + Math.cos(a) * radius;
-      const oy = player.y + Math.sin(a) * radius;
-      ctx.save();
-      ctx.shadowColor = '#a6f'; ctx.shadowBlur = 16;
-      ctx.beginPath(); ctx.arc(ox, oy, 10 + w.level * 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#a6f'; ctx.fill();
-      ctx.beginPath(); ctx.arc(ox, oy, 5 + w.level * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#d9f'; ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  // Shockwave charge
-  if (playerWeapons.wave) {
-    const w = playerWeapons.wave;
-    const interval = Math.max(50, WEAPONS.wave.baseInterval - w.level * 10);
-    const progress = w.timer / interval;
-    if (progress > 0.8) {
-      const range = WEAPONS.wave.baseRange + w.level * 18;
-      const pulse = (progress - 0.8) / 0.2;
-      ctx.beginPath(); ctx.arc(player.x, player.y, range * pulse, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255, 160, 60, ${(1 - pulse) * 0.5})`;
-      ctx.lineWidth = 4; ctx.stroke();
-    }
-  }
-
-  // Player
-  const blink = player.invincible > 0 && Math.floor(frame / 3) % 2;
-  if (!blink) {
-    ctx.save();
-    ctx.shadowColor = '#4af'; ctx.shadowBlur = 22;
-    ctx.beginPath(); ctx.arc(player.x, player.y, PLAYER_R, 0, Math.PI * 2);
-    ctx.fillStyle = '#4af'; ctx.fill();
-    ctx.restore();
-    ctx.beginPath(); ctx.arc(player.x, player.y, PLAYER_R * 0.55, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff'; ctx.fill();
-    // Direction indicator
-    if (playerControlled) {
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, PLAYER_R + 4, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(80,170,255,0.3)';
-      ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
-    }
-  }
-
-  // Damage texts
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  damageTexts.forEach(t => {
-    ctx.globalAlpha = t.life;
-    ctx.font = t.big ? 'bold 22px "Segoe UI", Arial, sans-serif' : 'bold 16px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = t.color;
-    if (t.big) { ctx.shadowColor = t.color; ctx.shadowBlur = 10; }
-    ctx.fillText(t.text, t.x, t.y);
-    ctx.shadowBlur = 0;
-  });
-  ctx.globalAlpha = 1;
-
-  ctx.restore();
-
-  // Minimap
-  drawMinimap();
-  drawOffscreenIndicators();
-}
-
-function drawMinimap() {
-  const size = 110;
-  const mx = W - size - 12, my = 62;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(mx, my, size, size);
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 1; ctx.strokeRect(mx, my, size, size);
-  const scale = size / WORLD;
-  enemies.forEach(e => {
-    const ex = mx + (e.x + WORLD/2) * scale;
-    const ey = my + (e.y + WORLD/2) * scale;
-    const isSpecial = ['berserker','necromancer','golem','boss'].includes(e.type);
-    ctx.fillStyle = isSpecial ? e.color : 'rgba(200,60,60,0.6)';
-    const sz = isSpecial ? 3 : 1.5;
-    ctx.fillRect(ex - sz/2, ey - sz/2, sz, sz);
-  });
-  const px = mx + (player.x + WORLD/2) * scale;
-  const py = my + (player.y + WORLD/2) * scale;
-  ctx.fillStyle = '#4af';
-  ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
-}
-
-function drawOffscreenIndicators() {
-  enemies.forEach(e => {
-    if (!['boss','berserker','necromancer','golem'].includes(e.type)) return;
-    const sx = e.x - camX, sy = e.y - camY;
-    if (sx > -30 && sx < W + 30 && sy > -30 && sy < H + 30) return;
-    const cx = W/2, cy = H/2;
-    const a = Math.atan2(sy - cy, sx - cx);
-    const margin = 35;
-    let ix = clamp(cx + Math.cos(a) * (W/2 - margin), margin, W - margin);
-    let iy = clamp(cy + Math.sin(a) * (H/2 - margin), margin, H - margin);
-    ctx.save();
-    ctx.translate(ix, iy); ctx.rotate(a);
-    ctx.beginPath();
-    ctx.moveTo(10, 0); ctx.lineTo(-7, -6); ctx.lineTo(-7, 6); ctx.closePath();
-    ctx.fillStyle = e.color;
-    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(frame * 0.08);
-    ctx.fill(); ctx.globalAlpha = 1;
-    ctx.restore();
-  });
-}
-
-// ── Main Loop (fixed timestep) ───────────────────────────────
-started = false;
-const TICK_RATE = 1000 / 60; // 60 updates per second
-const MAX_CATCH_UP = 5;      // max updates per frame to prevent spiral of death
-let lastTime = 0;
-let accumulator = 0;
-
-function loop(now) {
-  if (!lastTime) lastTime = now;
-  let elapsed = now - lastTime;
-  lastTime = now;
-  // Clamp large gaps (tab switch, etc.)
-  if (elapsed > 200) elapsed = 200;
-
-  if (started) {
-    accumulator += elapsed;
-    let steps = 0;
-    while (accumulator >= TICK_RATE && steps < MAX_CATCH_UP) {
-      update();
-      accumulator -= TICK_RATE;
-      steps++;
-    }
-    // Drop remaining accumulator if we hit max catch-up to avoid spiral
-    if (steps >= MAX_CATCH_UP) accumulator = 0;
-    draw();
-  }
-  requestAnimationFrame(loop);
-}
-
-document.getElementById('start-btn').addEventListener('click', () => {
-  ensureAudio();
-  document.getElementById('start-overlay').style.display = 'none';
-  started = true;
-  init();
-});
-document.getElementById('go-restart').addEventListener('click', () => { ensureAudio(); init(); });
-
-requestAnimationFrame(loop);
-</script>
 </body>
 </html>

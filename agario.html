@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CELL WARS</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: #08080f;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  color: #ccc;
+  user-select: none;
+}
+canvas { display: block; width: 100vw; height: 100vh; }
+
+#title {
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+  font-size: 28px; font-weight: 900; letter-spacing: 6px; color: #fff;
+  text-shadow: 0 0 20px rgba(100,180,255,0.5), 0 0 40px rgba(100,180,255,0.2);
+  z-index: 20; pointer-events: none;
+}
+
+#mode-ind {
+  position: fixed; top: 52px; left: 50%; transform: translateX(-50%);
+  font-size: 12px; padding: 3px 12px; border-radius: 4px;
+  font-weight: 700; letter-spacing: 1px; z-index: 20; pointer-events: none;
+}
+#mode-ind.spectator { background: rgba(80,200,120,0.2); color: #5c8; }
+#mode-ind.playing { background: rgba(255,100,100,0.2); color: #f77; }
+
+#leaderboard {
+  position: fixed; top: 14px; right: 14px;
+  width: 200px; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  padding: 10px 14px; z-index: 20; pointer-events: none;
+}
+#leaderboard h3 { font-size: 12px; color: #888; letter-spacing: 2px; margin-bottom: 6px; text-transform: uppercase; }
+#lb-list { list-style: none; font-size: 13px; }
+#lb-list li { padding: 2px 0; display: flex; justify-content: space-between; }
+#lb-list li .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+#lb-list li .lb-mass { color: #888; font-variant-numeric: tabular-nums; }
+
+#kill-feed {
+  position: fixed; bottom: 60px; left: 14px;
+  width: 280px; z-index: 20; pointer-events: none;
+}
+.kill-msg {
+  font-size: 12px; padding: 3px 0; opacity: 1;
+  transition: opacity 0.5s;
+}
+.kill-msg.fade { opacity: 0; }
+
+#minimap-wrap {
+  position: fixed; bottom: 14px; right: 14px;
+  z-index: 20; pointer-events: none;
+}
+#minimap {
+  width: 150px; height: 150px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.5);
+}
+
+#instructions {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+  padding: 30px 40px; z-index: 30; max-width: 400px; display: none;
+}
+#instructions h2 { font-size: 18px; color: #fff; margin-bottom: 12px; }
+#instructions p { font-size: 13px; line-height: 1.7; color: #aaa; }
+#instructions kbd {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 3px; padding: 1px 6px; font-family: inherit; font-size: 12px; color: #ddd;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="title">CELL WARS</div>
+<div id="mode-ind" class="spectator">SPECTATOR</div>
+<div id="leaderboard"><h3>Leaderboard</h3><ul id="lb-list"></ul></div>
+<div id="kill-feed"></div>
+<div id="minimap-wrap"><canvas id="minimap" width="150" height="150"></canvas></div>
+<div id="instructions">
+  <h2>CELL WARS</h2>
+  <p>
+    <kbd>Click</kbd> a cell to follow it<br>
+    <kbd>Space</kbd> take control / split<br>
+    <kbd>WASD</kbd> move (when controlling)<br>
+    <kbd>Esc</kbd> return to spectator<br>
+    <kbd>Scroll</kbd> zoom in/out<br>
+    <kbd>?</kbd> toggle this help
+  </p>
+</div>
+<script>
+'use strict';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const mmCanvas = document.getElementById('minimap');
+const mmCtx = mmCanvas.getContext('2d');
+const lbList = document.getElementById('lb-list');
+const killFeedEl = document.getElementById('kill-feed');
+const modeInd = document.getElementById('mode-ind');
+const instrEl = document.getElementById('instructions');
+
+// ── Constants ──
+const WORLD_W = 4000, WORLD_H = 4000;
+const FOOD_COUNT = 400;
+const CELL_COUNT = 18;
+const TICK_RATE = 1000 / 60;
+const MIN_MASS = 20, RESPAWN_MASS = 25;
+const DECAY_RATE = 0.0003;
+const SPLIT_MIN_MASS = 60;
+const SPLIT_SPEED = 12;
+
+// ── Names & Colors ──
+const NAMES = [
+  'Amoeba','Blob','Cyto','Diatom','Echo','Flux','Giga','Helix',
+  'Ion','Jelly','Krill','Lyso','Mito','Nexus','Orb','Proto',
+  'Quark','Ribo','Soma','Tox','Ultra','Vex','Warp','Xeno','Ylem','Zyme'
+];
+const PALETTES = [
+  ['#ff6b6b','#ee5a24'],['#ff9ff3','#f368e0'],['#feca57','#ff9f43'],
+  ['#48dbfb','#0abde3'],['#55efc4','#00b894'],['#a29bfe','#6c5ce7'],
+  ['#fd79a8','#e84393'],['#81ecec','#00cec9'],['#fab1a0','#e17055'],
+  ['#dfe6e9','#b2bec3'],['#74b9ff','#0984e3'],['#00d2d3','#01a3a4'],
+  ['#ff6348','#ff4757'],['#7bed9f','#2ed573'],['#70a1ff','#1e90ff'],
+  ['#ffa502','#e67e22'],['#ff4757','#c0392b'],['#2ed573','#27ae60'],
+  ['#1e90ff','#3742fa'],['#eccc68','#f1c40f']
+];
+const PERSONALITY = ['aggressive','aggressive','cautious','cautious','cautious',
+  'opportunist','opportunist','hunter','hunter','aggressive',
+  'cautious','opportunist','hunter','aggressive','cautious',
+  'opportunist','hunter','aggressive'];
+
+// ── Audio ──
+let audioCtx = null;
+let masterGain = null;
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  masterGain.connect(audioCtx.destination);
+  startAmbient();
+}
+function startAmbient() {
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'sine'; osc.frequency.value = 80;
+  g.gain.value = 0.04;
+  osc.connect(g); g.connect(masterGain);
+  osc.start();
+  const osc2 = audioCtx.createOscillator();
+  const g2 = audioCtx.createGain();
+  osc2.type = 'sine'; osc2.frequency.value = 120;
+  g2.gain.value = 0.02;
+  osc2.connect(g2); g2.connect(masterGain);
+  osc2.start();
+}
+function playEatFood() {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine'; o.frequency.value = 600 + Math.random() * 200;
+  g.gain.value = 0.08;
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+  o.connect(g); g.connect(masterGain);
+  o.start(); o.stop(audioCtx.currentTime + 0.12);
+}
+function playEatCell() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sawtooth'; o.frequency.value = 200;
+  o.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+  g.gain.value = 0.15;
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  o.connect(g); g.connect(masterGain);
+  o.start(); o.stop(t + 0.4);
+}
+function playSplit() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'triangle'; o.frequency.value = 300;
+  o.frequency.exponentialRampToValueAtTime(500, t + 0.1);
+  g.gain.value = 0.1;
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  o.connect(g); g.connect(masterGain);
+  o.start(); o.stop(t + 0.15);
+}
+
+// ── State ──
+let cells = [];
+let foods = [];
+let particles = [];
+let killMessages = [];
+let camera = { x: WORLD_W / 2, y: WORLD_H / 2, zoom: 0.5, targetZoom: 0.5 };
+let followId = -1;    // cell id we're following
+let controlId = -1;   // cell id we're controlling (-1 = spectator)
+let playerInput = { mx: 0, my: 0, w: false, a: false, s: false, d: false, split: false };
+let showInstructions = false;
+let nextCellId = 0;
+let time = 0;
+
+// ── Helpers ──
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function massToRadius(m) { return Math.sqrt(m) * 3; }
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+// ── Food ──
+function spawnFood() {
+  return {
+    x: rnd(50, WORLD_W - 50), y: rnd(50, WORLD_H - 50),
+    r: rnd(3, 5), color: `hsl(${rnd(0,360)},80%,65%)`,
+    pulse: rnd(0, Math.PI * 2)
+  };
+}
+function initFoods() { foods = []; for (let i = 0; i < FOOD_COUNT; i++) foods.push(spawnFood()); }
+
+// ── Cells ──
+function spawnCell(i) {
+  const pal = PALETTES[i % PALETTES.length];
+  return {
+    id: nextCellId++,
+    name: NAMES[i % NAMES.length],
+    x: rnd(200, WORLD_W - 200), y: rnd(200, WORLD_H - 200),
+    vx: 0, vy: 0,
+    mass: RESPAWN_MASS + rnd(0, 15),
+    color1: pal[0], color2: pal[1],
+    personality: PERSONALITY[i % PERSONALITY.length],
+    wobble: rnd(0, Math.PI * 2),
+    kills: 0,
+    targetX: 0, targetY: 0,
+    splitCooldown: 0,
+    mergeTimer: 0,
+    idx: i // original index for respawn palette
+  };
+}
+function initCells() {
+  cells = [];
+  for (let i = 0; i < CELL_COUNT; i++) cells.push(spawnCell(i));
+}
+
+// ── Particles ──
+function burstParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = rnd(0, Math.PI * 2);
+    const speed = rnd(2, 8);
+    particles.push({
+      x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, color, r: rnd(2, 6)
+    });
+  }
+}
+
+// ── Kill feed ──
+function addKillMsg(killer, victim) {
+  const msg = document.createElement('div');
+  msg.className = 'kill-msg';
+  msg.innerHTML = `<span style="color:${killer.color1}">${killer.name}</span> ate <span style="color:${victim.color1}">${victim.name}</span>`;
+  killFeedEl.prepend(msg);
+  setTimeout(() => msg.classList.add('fade'), 3000);
+  setTimeout(() => msg.remove(), 3500);
+  while (killFeedEl.children.length > 8) killFeedEl.lastChild.remove();
+}
+
+// ── AI Logic ──
+function aiThink(c) {
+  if (c.id === controlId) return; // player controlled
+
+  const r = massToRadius(c.mass);
+  let tx = c.x, ty = c.y;
+  let wantSplit = false;
+
+  // Find nearest threats and prey
+  let nearestThreat = null, nearestThreatD = Infinity;
+  let nearestPrey = null, nearestPreyD = Infinity;
+  let nearestWeakened = null, nearestWeakenedD = Infinity;
+
+  for (const o of cells) {
+    if (o === c) continue;
+    const d = dist(c, o);
+    if (o.mass > c.mass * 1.15 && d < nearestThreatD) { nearestThreat = o; nearestThreatD = d; }
+    if (c.mass > o.mass * 1.15 && d < nearestPreyD) { nearestPrey = o; nearestPreyD = d; }
+    // Weakened = small mass and near other big cells
+    if (c.mass > o.mass * 1.3 && o.mass < 60 && d < nearestWeakenedD) { nearestWeakened = o; nearestWeakenedD = d; }
+  }
+
+  // Find nearest food
+  let nearestFood = null, nearestFoodD = Infinity;
+  for (const f of foods) {
+    const d = Math.hypot(c.x - f.x, c.y - f.y);
+    if (d < nearestFoodD) { nearestFood = f; nearestFoodD = d; }
+  }
+
+  const senseRange = 300 + r * 3;
+
+  switch (c.personality) {
+    case 'aggressive':
+      if (nearestPrey && nearestPreyD < senseRange * 1.5) {
+        tx = nearestPrey.x; ty = nearestPrey.y;
+        if (nearestPreyD < r * 4 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0 && c.mass > nearestPrey.mass * 2.5) {
+          wantSplit = true;
+        }
+      } else if (nearestThreat && nearestThreatD < senseRange * 0.7) {
+        tx = c.x - (nearestThreat.x - c.x); ty = c.y - (nearestThreat.y - c.y);
+      } else if (nearestFood) {
+        tx = nearestFood.x; ty = nearestFood.y;
+      }
+      break;
+
+    case 'cautious':
+      if (nearestThreat && nearestThreatD < senseRange) {
+        tx = c.x - (nearestThreat.x - c.x) * 2;
+        ty = c.y - (nearestThreat.y - c.y) * 2;
+      } else if (nearestFood) {
+        tx = nearestFood.x; ty = nearestFood.y;
+      }
+      break;
+
+    case 'opportunist':
+      // Look for cells fighting (two big cells near each other)
+      let fightCenter = null;
+      for (let i = 0; i < cells.length; i++) {
+        for (let j = i + 1; j < cells.length; j++) {
+          const a = cells[i], b = cells[j];
+          if (a === c || b === c) continue;
+          if (a.mass > 50 && b.mass > 50 && dist(a, b) < massToRadius(a.mass) + massToRadius(b.mass) + 100) {
+            fightCenter = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            break;
+          }
+        }
+        if (fightCenter) break;
+      }
+      if (fightCenter && Math.hypot(c.x - fightCenter.x, c.y - fightCenter.y) < senseRange * 2) {
+        // Circle around the fight at a safe distance
+        const dx = c.x - fightCenter.x, dy = c.y - fightCenter.y;
+        const fd = Math.hypot(dx, dy);
+        const idealDist = 250;
+        if (fd < idealDist - 50) {
+          tx = c.x + dx; ty = c.y + dy;
+        } else if (fd > idealDist + 50) {
+          tx = fightCenter.x; ty = fightCenter.y;
+        } else {
+          // orbit
+          tx = c.x - dy * 0.5; ty = c.y + dx * 0.5;
+        }
+      } else if (nearestThreat && nearestThreatD < senseRange * 0.6) {
+        tx = c.x - (nearestThreat.x - c.x); ty = c.y - (nearestThreat.y - c.y);
+      } else if (nearestWeakened && nearestWeakenedD < senseRange) {
+        tx = nearestWeakened.x; ty = nearestWeakened.y;
+      } else if (nearestFood) {
+        tx = nearestFood.x; ty = nearestFood.y;
+      }
+      break;
+
+    case 'hunter':
+      if (nearestPrey && nearestPreyD < senseRange * 2) {
+        // Predict prey movement
+        tx = nearestPrey.x + nearestPrey.vx * 20;
+        ty = nearestPrey.y + nearestPrey.vy * 20;
+        if (nearestPreyD < r * 5 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0 && c.mass > nearestPrey.mass * 2.2) {
+          wantSplit = true;
+        }
+      } else if (nearestThreat && nearestThreatD < senseRange * 0.5) {
+        tx = c.x - (nearestThreat.x - c.x); ty = c.y - (nearestThreat.y - c.y);
+      } else if (nearestFood) {
+        tx = nearestFood.x; ty = nearestFood.y;
+      }
+      break;
+  }
+
+  c.targetX = tx;
+  c.targetY = ty;
+
+  if (wantSplit) {
+    splitCell(c);
+  }
+}
+
+function splitCell(c) {
+  if (c.mass < SPLIT_MIN_MASS || c.splitCooldown > 0) return;
+  const halfMass = c.mass / 2;
+  c.mass = halfMass;
+  const dx = c.targetX - c.x, dy = c.targetY - c.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const child = {
+    id: nextCellId++, name: c.name,
+    x: c.x + (dx / d) * massToRadius(c.mass),
+    y: c.y + (dy / d) * massToRadius(c.mass),
+    vx: (dx / d) * SPLIT_SPEED, vy: (dy / d) * SPLIT_SPEED,
+    mass: halfMass,
+    color1: c.color1, color2: c.color2,
+    personality: c.personality,
+    wobble: rnd(0, Math.PI * 2),
+    kills: 0, targetX: c.targetX, targetY: c.targetY,
+    splitCooldown: 0, mergeTimer: 300, // 5 seconds to merge back
+    idx: c.idx, parentId: c.id
+  };
+  c.splitCooldown = 180; // 3 seconds
+  c.mergeTimer = 300;
+  cells.push(child);
+  playSplit();
+}
+
+// ── Game Update (fixed timestep) ──
+function update() {
+  time++;
+
+  // Replenish food
+  while (foods.length < FOOD_COUNT) foods.push(spawnFood());
+
+  // Update cells
+  for (const c of cells) {
+    c.wobble += 0.05;
+    if (c.splitCooldown > 0) c.splitCooldown--;
+    if (c.mergeTimer > 0) c.mergeTimer--;
+
+    // AI
+    aiThink(c);
+
+    // Movement
+    const r = massToRadius(c.mass);
+    const speed = Math.max(1.5, 6 - r * 0.03);
+
+    if (c.id === controlId) {
+      // Player control
+      let dx = 0, dy = 0;
+      if (playerInput.w) dy -= 1;
+      if (playerInput.s) dy += 1;
+      if (playerInput.a) dx -= 1;
+      if (playerInput.d) dx += 1;
+      const len = Math.hypot(dx, dy) || 1;
+      c.vx += (dx / len * speed - c.vx) * 0.1;
+      c.vy += (dy / len * speed - c.vy) * 0.1;
+      if (playerInput.split) {
+        playerInput.split = false;
+        c.targetX = c.x + (playerInput.mx - canvas.width / 2) / camera.zoom;
+        c.targetY = c.y + (playerInput.my - canvas.height / 2) / camera.zoom;
+        splitCell(c);
+      }
+    } else {
+      // AI movement toward target
+      const dx = c.targetX - c.x, dy = c.targetY - c.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const moveSpeed = Math.min(speed, d * 0.05);
+      c.vx += (dx / d * moveSpeed - c.vx) * 0.08;
+      c.vy += (dy / d * moveSpeed - c.vy) * 0.08;
+    }
+
+    // Apply velocity
+    c.x += c.vx;
+    c.y += c.vy;
+    c.vx *= 0.95;
+    c.vy *= 0.95;
+
+    // Boundary
+    c.x = clamp(c.x, r, WORLD_W - r);
+    c.y = clamp(c.y, r, WORLD_H - r);
+
+    // Eat food
+    for (let i = foods.length - 1; i >= 0; i--) {
+      const f = foods[i];
+      if (Math.hypot(c.x - f.x, c.y - f.y) < r) {
+        c.mass += 1;
+        foods.splice(i, 1);
+        playEatFood();
+      }
+    }
+
+    // Mass decay
+    if (c.mass > 50) c.mass -= c.mass * DECAY_RATE;
+  }
+
+  // Merge same-name split cells
+  for (let i = 0; i < cells.length; i++) {
+    for (let j = i + 1; j < cells.length; j++) {
+      const a = cells[i], b = cells[j];
+      if (a.idx === b.idx && a.mergeTimer <= 0 && b.mergeTimer <= 0) {
+        const d = dist(a, b);
+        const rr = massToRadius(a.mass) + massToRadius(b.mass);
+        if (d < rr * 0.5) {
+          // merge into larger
+          if (a.mass >= b.mass) {
+            a.mass += b.mass;
+            cells.splice(j, 1); j--;
+          } else {
+            b.mass += a.mass;
+            cells.splice(i, 1); i--; break;
+          }
+        }
+      }
+    }
+  }
+
+  // Cell-cell eating
+  const toRemove = new Set();
+  for (let i = 0; i < cells.length; i++) {
+    for (let j = i + 1; j < cells.length; j++) {
+      const a = cells[i], b = cells[j];
+      if (a.idx === b.idx) continue; // same team
+      if (toRemove.has(i) || toRemove.has(j)) continue;
+      const d = dist(a, b);
+      const ra = massToRadius(a.mass), rb = massToRadius(b.mass);
+      if (d < Math.max(ra, rb) * 0.7) {
+        if (a.mass > b.mass * 1.15) {
+          a.mass += b.mass * 0.8;
+          a.kills++;
+          addKillMsg(a, b);
+          burstParticles(b.x, b.y, b.color1, 15);
+          playEatCell();
+          toRemove.add(j);
+        } else if (b.mass > a.mass * 1.15) {
+          b.mass += a.mass * 0.8;
+          b.kills++;
+          addKillMsg(b, a);
+          burstParticles(a.x, a.y, a.color1, 15);
+          playEatCell();
+          toRemove.add(i);
+        }
+      }
+    }
+  }
+
+  // Remove eaten, respawn
+  const removeIndices = [...toRemove].sort((a, b) => b - a);
+  for (const idx of removeIndices) {
+    const dead = cells[idx];
+    if (followId === dead.id) followId = -1;
+    if (controlId === dead.id) { controlId = -1; setMode('spectator'); }
+    const respawned = spawnCell(dead.idx);
+    cells.splice(idx, 1);
+    cells.push(respawned);
+  }
+
+  // Ensure minimum cell count
+  while (cells.length < CELL_COUNT) {
+    cells.push(spawnCell(cells.length));
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.95; p.vy *= 0.95;
+    p.life -= 0.025;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Camera
+  let target = null;
+  if (controlId >= 0) target = cells.find(c => c.id === controlId);
+  if (!target && followId >= 0) target = cells.find(c => c.id === followId);
+  if (!target) {
+    // Auto follow largest
+    let biggest = cells[0];
+    for (const c of cells) if (c.mass > biggest.mass) biggest = c;
+    target = biggest;
+    followId = biggest.id;
+  }
+  if (target) {
+    camera.x += (target.x - camera.x) * 0.05;
+    camera.y += (target.y - camera.y) * 0.05;
+    camera.targetZoom = clamp(40 / massToRadius(target.mass), 0.2, 1.5);
+  }
+  camera.zoom += (camera.targetZoom - camera.zoom) * 0.03;
+}
+
+// ── Rendering ──
+function render() {
+  const W = canvas.width = window.innerWidth;
+  const H = canvas.height = window.innerHeight;
+
+  ctx.fillStyle = '#0a0a14';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x, -camera.y);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  const gridSize = 80;
+  const startX = Math.floor((camera.x - W / 2 / camera.zoom) / gridSize) * gridSize;
+  const endX = Math.ceil((camera.x + W / 2 / camera.zoom) / gridSize) * gridSize;
+  const startY = Math.floor((camera.y - H / 2 / camera.zoom) / gridSize) * gridSize;
+  const endY = Math.ceil((camera.y + H / 2 / camera.zoom) / gridSize) * gridSize;
+  ctx.beginPath();
+  for (let x = startX; x <= endX; x += gridSize) { ctx.moveTo(x, startY); ctx.lineTo(x, endY); }
+  for (let y = startY; y <= endY; y += gridSize) { ctx.moveTo(startX, y); ctx.lineTo(endX, y); }
+  ctx.stroke();
+
+  // World border
+  ctx.strokeStyle = 'rgba(255,60,60,0.3)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+
+  // Food
+  for (const f of foods) {
+    const pr = f.r + Math.sin(time * 0.03 + f.pulse) * 0.8;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, pr, 0, Math.PI * 2);
+    ctx.fillStyle = f.color;
+    ctx.globalAlpha = 0.7 + Math.sin(time * 0.04 + f.pulse) * 0.2;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Cells (sorted by mass for proper layering)
+  const sorted = [...cells].sort((a, b) => a.mass - b.mass);
+  for (const c of sorted) {
+    const r = massToRadius(c.mass);
+    const wobbleR = r + Math.sin(c.wobble) * r * 0.04;
+
+    // Outer glow
+    const glow = ctx.createRadialGradient(c.x, c.y, r * 0.5, c.x, c.y, r * 1.8);
+    glow.addColorStop(0, 'transparent');
+    glow.addColorStop(0.7, 'transparent');
+    glow.addColorStop(1, c.color1 + '15');
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r * 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Cell body with gradient
+    const grad = ctx.createRadialGradient(c.x - r * 0.3, c.y - r * 0.3, r * 0.1, c.x, c.y, wobbleR);
+    grad.addColorStop(0, c.color1);
+    grad.addColorStop(1, c.color2);
+    ctx.beginPath();
+    // Wobble shape
+    const segs = 32;
+    for (let i = 0; i <= segs; i++) {
+      const ang = (i / segs) * Math.PI * 2;
+      const wr = wobbleR + Math.sin(ang * 3 + c.wobble) * r * 0.03
+                         + Math.sin(ang * 5 - c.wobble * 1.3) * r * 0.02;
+      const px = c.x + Math.cos(ang) * wr;
+      const py = c.y + Math.sin(ang) * wr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Specular highlight
+    ctx.beginPath();
+    ctx.ellipse(c.x - r * 0.25, c.y - r * 0.3, r * 0.35, r * 0.2, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fill();
+
+    // Outline for controlled/followed cell
+    if (c.id === controlId || c.id === followId) {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, wobbleR + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = c.id === controlId ? 'rgba(255,255,100,0.5)' : 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Name
+    const fontSize = clamp(r * 0.45, 10, 24);
+    ctx.font = `bold ${fontSize}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(c.name, c.x, c.y - fontSize * 0.15);
+    ctx.font = `${fontSize * 0.65}px 'Segoe UI', sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(Math.floor(c.mass), c.x, c.y + fontSize * 0.65);
+    ctx.shadowBlur = 0;
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+
+  // Leaderboard
+  const lb = [...cells].sort((a, b) => b.mass - a.mass).slice(0, 10);
+  lbList.innerHTML = '';
+  for (let i = 0; i < lb.length; i++) {
+    const c = lb[i];
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="lb-name" style="color:${c.color1}">${i + 1}. ${c.name}</span><span class="lb-mass">${Math.floor(c.mass)}</span>`;
+    lbList.appendChild(li);
+  }
+
+  // Minimap
+  mmCtx.clearRect(0, 0, 150, 150);
+  mmCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  mmCtx.fillRect(0, 0, 150, 150);
+  const mmScale = 150 / WORLD_W;
+  for (const c of cells) {
+    mmCtx.beginPath();
+    mmCtx.arc(c.x * mmScale, c.y * mmScale, clamp(massToRadius(c.mass) * mmScale * 2, 1.5, 6), 0, Math.PI * 2);
+    mmCtx.fillStyle = c.color1;
+    mmCtx.fill();
+  }
+  // Camera view rect
+  mmCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+  mmCtx.lineWidth = 1;
+  const vw = W / camera.zoom * mmScale, vh = H / camera.zoom * mmScale;
+  mmCtx.strokeRect(camera.x * mmScale - vw / 2, camera.y * mmScale - vh / 2, vw, vh);
+}
+
+function setMode(mode) {
+  modeInd.className = mode;
+  modeInd.textContent = mode.toUpperCase();
+}
+
+// ── Input ──
+window.addEventListener('keydown', e => {
+  initAudio();
+  if (e.key === '?') { showInstructions = !showInstructions; instrEl.style.display = showInstructions ? 'block' : 'none'; return; }
+  if (e.key === 'Escape') {
+    controlId = -1;
+    setMode('spectator');
+    showInstructions = false;
+    instrEl.style.display = 'none';
+    return;
+  }
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    if (controlId < 0) {
+      // Take control of followed cell
+      const target = cells.find(c => c.id === followId) || cells[0];
+      if (target) { controlId = target.id; followId = target.id; setMode('playing'); }
+    } else {
+      playerInput.split = true;
+    }
+    return;
+  }
+  if (e.key === 'w' || e.key === 'W') playerInput.w = true;
+  if (e.key === 'a' || e.key === 'A') playerInput.a = true;
+  if (e.key === 's' || e.key === 'S') playerInput.s = true;
+  if (e.key === 'd' || e.key === 'D') playerInput.d = true;
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'w' || e.key === 'W') playerInput.w = false;
+  if (e.key === 'a' || e.key === 'A') playerInput.a = false;
+  if (e.key === 's' || e.key === 'S') playerInput.s = false;
+  if (e.key === 'd' || e.key === 'D') playerInput.d = false;
+});
+canvas.addEventListener('click', e => {
+  initAudio();
+  // World coords
+  const wx = (e.clientX - canvas.width / 2) / camera.zoom + camera.x;
+  const wy = (e.clientY - canvas.height / 2) / camera.zoom + camera.y;
+  // Find closest cell
+  let best = null, bestD = Infinity;
+  for (const c of cells) {
+    const d = Math.hypot(c.x - wx, c.y - wy);
+    if (d < massToRadius(c.mass) * 1.5 && d < bestD) { best = c; bestD = d; }
+  }
+  if (best) {
+    followId = best.id;
+    if (controlId >= 0) controlId = best.id;
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  playerInput.mx = e.clientX;
+  playerInput.my = e.clientY;
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camera.targetZoom = clamp(camera.targetZoom - e.deltaY * 0.001, 0.15, 2);
+}, { passive: false });
+
+// ── Game Loop ──
+initFoods();
+initCells();
+
+let accumulator = 0, lastTime = performance.now();
+function gameLoop(now) {
+  accumulator += now - lastTime;
+  lastTime = now;
+  // Cap accumulator to prevent spiral
+  if (accumulator > 200) accumulator = 200;
+  while (accumulator >= TICK_RATE) {
+    update();
+    accumulator -= TICK_RATE;
+  }
+  render();
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
