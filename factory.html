@@ -549,11 +549,11 @@ function aiPlanProductionLine(cx,cy){
       acts.push({type:'belt',x:smX-1,y:smY,dir:DIR_R});
   }
 
-  // Smelter output -> assembler: right then down-right
+  // Smelter output -> assembler from left side
   acts.push({type:'belt',x:smX+1,y:smY,dir:DIR_R});
-  acts.push({type:'belt',x:smX+2,y:smY,dir:DIR_R});
-  acts.push({type:'belt',x:smX+3,y:smY,dir:DIR_D});
-  acts.push({type:'belt',x:smX+3,y:asY,dir:DIR_R});
+  acts.push({type:'belt',x:smX+2,y:smY,dir:DIR_D});
+  acts.push({type:'belt',x:smX+2,y:asY,dir:DIR_R});
+  acts.push({type:'belt',x:asX-1,y:asY,dir:DIR_R});
 
   // Copper source -> wire mill
   const copperSrc=findNearestSource(bx,wmY,ITEM_COPPER);
@@ -573,13 +573,13 @@ function aiPlanProductionLine(cx,cy){
       acts.push({type:'belt',x:wmX-1,y:wmY,dir:DIR_R});
   }
 
-  // WireMill output -> assembler: right, up to assembler row, right
+  // WireMill output -> assembler from below (south side)
+  // bx+5,by+4 R -> bx+6,by+4 R -> bx+7,by+4 R -> bx+8,by+4 U -> bx+8,by+3 U -> assembler(bx+8,by+2)
   acts.push({type:'belt',x:wmX+1,y:wmY,dir:DIR_R});
-  acts.push({type:'belt',x:wmX+2,y:wmY,dir:DIR_U});
-  acts.push({type:'belt',x:wmX+2,y:wmY-1,dir:DIR_U});
-  // wmX+2 = bx+6, asY = by+2, wmY-2 = by+2 = asY (since wmY=by+4)
-  // so belt at bx+6,by+2 goes right to assembler at bx+8
-  acts.push({type:'belt',x:wmX+2,y:asY,dir:DIR_R});
+  acts.push({type:'belt',x:wmX+2,y:wmY,dir:DIR_R});
+  acts.push({type:'belt',x:wmX+3,y:wmY,dir:DIR_R});
+  acts.push({type:'belt',x:asX,y:wmY,dir:DIR_U});
+  acts.push({type:'belt',x:asX,y:wmY-1,dir:DIR_U});
 
   // Assembler output
   acts.push({type:'belt',x:asX+1,y:asY,dir:DIR_R});
