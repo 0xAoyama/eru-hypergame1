@@ -12,7 +12,10 @@ body{background:#06060c;color:#d4c8a0;font-family:'Segoe UI','Hiragino Kaku Goth
 /* ── Dungeon canvas (top, fills all available space above bottom) ── */
 #dungeon-wrap{flex:1;position:relative;overflow:hidden;min-height:0}
 #dcv{display:block;width:100%;height:100%}
-#enemy-hud{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;width:85%}
+#enemy-hud{position:absolute;top:22%;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;width:60%}
+#log-overlay{position:absolute;top:0;left:0;right:0;padding:3px 8px;pointer-events:none;max-height:60px;overflow:hidden}
+#log-overlay div{font-size:11px;line-height:1.5;text-shadow:0 1px 3px #000}
+#log-overlay .dmg{color:#f88}#log-overlay .heal{color:#8f8}#log-overlay .skill{color:#a8f}#log-overlay .info{color:#888}#log-overlay .drop{color:#fc6}
 .eh-name{font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 4px #000,0 0 10px rgba(255,80,80,0.3)}
 .eh-hp-bg{height:7px;background:rgba(0,0,0,0.6);border-radius:3px;overflow:hidden;margin-top:3px;border:1px solid rgba(255,255,255,0.1)}
 .eh-hp{height:100%;background:linear-gradient(90deg,#c33,#f66);border-radius:3px;transition:width .2s}
@@ -64,6 +67,7 @@ button:disabled{opacity:.3;cursor:default;transform:none}
 <div id="game">
   <div id="dungeon-wrap">
     <canvas id="dcv"></canvas>
+    <div id="log-overlay"></div>
     <div id="enemy-hud"></div>
   </div>
   <div id="bottom"></div>
@@ -179,7 +183,7 @@ function charStats(pm){
 }
 function xpNeeded(lvl){return Math.floor(10+lvl*8+lvl*lvl*.5)}
 function refreshHP(){G.party.forEach(pm=>{const s=charStats(pm);pm.mhp=s.hp;pm.hp=Math.min(pm.hp,pm.mhp);pm.alive=pm.hp>0})}
-function addLog(t,m){G.log.push({t,m});if(G.log.length>50)G.log.shift();renderLog()}
+function addLog(t,m){G.log.push({t,m});if(G.log.length>50)G.log.shift();renderLogOverlay()}
 
 // ── Procedural brick texture ──
 let brickTex;
@@ -197,13 +201,17 @@ let brickTex;
 // ── Canvas ──
 const dcv=document.getElementById('dcv'),dx=dcv.getContext('2d');
 const $eh=document.getElementById('enemy-hud');
+const $lo=document.getElementById('log-overlay');
 const $bt=document.getElementById('bottom');
 let cf=0,cW=440,cH=300;
 
 function resizeCanvas(){
   const wrap=document.getElementById('dungeon-wrap');
   cW=wrap.clientWidth;cH=wrap.clientHeight;
-  dcv.width=cW;dcv.height=cH;
+  // Set canvas pixel buffer to match CSS size for correct aspect ratio
+  const dpr=1; // use 1 for performance; crisp enough for pixel art style
+  dcv.width=cW*dpr;dcv.height=cH*dpr;
+  dx.setTransform(dpr,0,0,dpr,0,0);
 }
 resizeCanvas();
 window.addEventListener('resize',resizeCanvas);
@@ -303,27 +311,17 @@ function drawDungeon(){
     c.globalAlpha=1;
   }
 
+  // Floor label under monster (or center during walk)
+  const floorY = (G.enemy&&G.phase==='combat') ? vpY+H*.22+20 : vpY+10;
+  c.font='bold 13px sans-serif';c.textAlign='center';c.textBaseline='middle';
+  c.fillStyle='rgba(0,0,0,0.5)';
+  const ftw=c.measureText('Floor '+G.floor).width;
+  c.fillRect(W/2-ftw/2-8,floorY-8,ftw+16,18);
+  c.fillStyle='#c8b8ff';c.fillText('Floor '+G.floor,W/2,floorY);
+
   // Vignette
   const v=c.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,H*.85);
   v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(6,6,12,0.55)');c.fillStyle=v;c.fillRect(0,0,W,H);
-
-  // HUD: floor badge top-left
-  c.fillStyle='rgba(0,0,0,0.55)';c.beginPath();c.arc(26,22,18,0,Math.PI*2);c.fill();
-  c.font='bold 10px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#c8b8ff';c.fillText('F'+G.floor,26,22);
-  // Speed + heal charges top-right
-  c.textAlign='right';c.font='11px sans-serif';
-  c.fillStyle='#ff6688';c.fillText('❤️'+G.healCharges,W-10,18);
-  c.fillStyle='#888';c.fillText(G.speed+'x',W-10,32);
-
-  // Combat log text on canvas (last 4 lines overlaid at bottom-left)
-  const logLines=G.log.slice(-4);
-  c.font='11px sans-serif';c.textAlign='left';
-  logLines.forEach((l,i)=>{
-    const y=H-50+(i*13);
-    c.fillStyle='rgba(0,0,0,0.5)';c.fillRect(4,y-9,W*.6,13);
-    c.fillStyle=l.t==='dmg'?'#f88':l.t==='heal'?'#8f8':l.t==='skill'?'#a8f':l.t==='drop'?'#fc6':'#777';
-    c.fillText(l.m.slice(0,40),8,y);
-  });
 }
 
 // ── Enemy HUD (overlay on canvas, only HP bar) ──
@@ -335,7 +333,7 @@ function renderEnemyHUD(){
   const bg=document.createElement('div');bg.className='eh-hp-bg';
   const bar=document.createElement('div');bar.className='eh-hp';bar.style.width=hp+'%';
   bg.appendChild(bar);
-  const st=document.createElement('div');st.className='eh-stats';st.textContent='HP '+e.hp+'/'+e.mhp;
+  const st=document.createElement('div');st.className='eh-stats';st.textContent=e.hp+'/'+e.mhp;
   $eh.appendChild(n);$eh.appendChild(bg);$eh.appendChild(st);
 }
 
@@ -422,7 +420,12 @@ function updatePartyHP(){
   });
 }
 
-function renderLog(){} // log is now drawn on canvas
+function renderLogOverlay(){
+  $lo.innerHTML='';
+  G.log.slice(-4).forEach(l=>{
+    const d=document.createElement('div');d.className=l.t;d.textContent=l.m;$lo.appendChild(d);
+  });
+}
 
 function tryEquip(ci,ii){
   const pm=G.party[ci],item=G.inv[ii];if(!item)return;
