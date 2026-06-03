@@ -711,6 +711,13 @@ function update() {
   // History sample
   if (frame % HIST_SAMPLE === 0) sampleHistory();
 
+  // Late-game pressure: prevents deadlocks while preserving early faction dynamics.
+  if (frame > 12000) {
+    const pressure = Math.min(4, 0.2 + (frame - 12000) / 4000);
+    bases.forEach(b => { if (b.alive) b.hp -= pressure; });
+    if (frame === 12001 || frame % 1800 === 0) addLog('⚠ 終盤圧力: 膠着を崩す決戦フェーズ', '#bb77ff');
+  }
+
   // Win check
   const alive = bases.filter(b => b.alive);
   if (alive.length <= 1) {
