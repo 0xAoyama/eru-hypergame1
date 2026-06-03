@@ -16,16 +16,15 @@ body{background:#06060c;color:#d4c8a0;font-family:'Segoe UI','Hiragino Kaku Goth
 #floor-bar .heal-ct{color:#ff6688}
 #floor-bar .spd{color:#888;cursor:pointer}
 
-/* ── Enemy area (fixed top section) ── */
-#enemy-area{flex-shrink:0;height:180px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#0e0610,#0a0a14);border-bottom:1px solid #1a1a2a;position:relative;overflow:hidden}
-.enemy-icon{font-size:52px;filter:drop-shadow(0 0 10px rgba(255,60,60,0.3));animation:ePulse 2s ease-in-out infinite}
-@keyframes ePulse{0%,100%{filter:drop-shadow(0 0 8px rgba(255,60,60,0.25))}50%{filter:drop-shadow(0 0 18px rgba(255,60,60,0.55))}}
-.enemy-name{font-size:16px;font-weight:700;color:#ff8888;margin:4px 0;text-shadow:0 0 8px rgba(255,100,100,0.2)}
-.enemy-stats{font-size:11px;color:#c88}
-.ehp-bg{height:8px;width:min(280px,80%);background:#1a0a0a;border-radius:4px;overflow:hidden;border:1px solid #3a1a2a;margin-top:4px}
-.ehp{height:100%;background:linear-gradient(90deg,#c33,#f66);border-radius:4px;transition:width .2s}
-.boss-label{color:#ffd700;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:2px}
-.floor-msg{font-size:13px;color:#8878aa;text-align:center}
+/* ── Dungeon view (canvas) ── */
+#dungeon-wrap{flex-shrink:0;height:240px;position:relative;overflow:hidden;border-bottom:1px solid #1a1a2a}
+#dcv{display:block;width:100%;height:100%}
+/* Enemy HUD overlay on canvas */
+#enemy-hud{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;width:80%}
+.eh-name{font-size:14px;font-weight:700;color:#fff;text-shadow:0 1px 4px #000,0 0 10px rgba(255,80,80,0.3)}
+.eh-hp-bg{height:6px;background:rgba(0,0,0,0.6);border-radius:3px;overflow:hidden;margin-top:3px;border:1px solid rgba(255,255,255,0.1)}
+.eh-hp{height:100%;background:linear-gradient(90deg,#c33,#f66);border-radius:3px;transition:width .2s}
+.eh-stats{font-size:10px;color:rgba(255,200,200,0.7);margin-top:2px}
 
 /* ── Combat log ── */
 #log-area{flex-shrink:0;height:80px;overflow-y:auto;padding:4px 10px;background:#08080f;border-bottom:1px solid #1a1a2a;font-size:11px;line-height:1.6}
@@ -81,7 +80,10 @@ button:disabled{opacity:.3;cursor:default;transform:none}
 <body>
 <div id="game">
   <div id="floor-bar"></div>
-  <div id="enemy-area"></div>
+  <div id="dungeon-wrap">
+    <canvas id="dcv" width="440" height="240"></canvas>
+    <div id="enemy-hud"></div>
+  </div>
   <div id="log-area"></div>
   <div id="bottom"></div>
 </div>
@@ -201,7 +203,8 @@ function refreshHP(){G.party.forEach(pm=>{const s=charStats(pm);pm.mhp=s.hp;pm.h
 
 // ── DOM refs ──
 const $fb=document.getElementById('floor-bar');
-const $ea=document.getElementById('enemy-area');
+const $eh=document.getElementById('enemy-hud');
+const dcv=document.getElementById('dcv'),dx=dcv.getContext('2d');
 const $la=document.getElementById('log-area');
 const $bt=document.getElementById('bottom');
 
@@ -217,19 +220,188 @@ function renderFloorBar(){
   $fb.appendChild(info);
 }
 
-function renderEnemy(){
-  $ea.innerHTML='';
-  if(!G.enemy){
-    $ea.appendChild(h('div',{className:'floor-msg'},'次の階へ進行中...'));
-    return;
+// ── Procedural stone brick texture ──
+let brickTex=null;
+function makeBrickTex(){
+  const c=document.createElement('canvas'),x=c.getContext('2d');
+  c.width=64;c.height=64;
+  // Dark stone base
+  x.fillStyle='#2a2830';x.fillRect(0,0,64,64);
+  // Bricks
+  const bw=16,bh=10;
+  for(let row=0;row<7;row++){
+    const offset=(row%2)*8;
+    for(let col=-1;col<5;col++){
+      const bx=col*bw+offset,by=row*bh;
+      // Varied stone color
+      const v=Math.random()*20-10|0;
+      x.fillStyle=`rgb(${38+v},${34+v},${42+v})`;
+      x.fillRect(bx+1,by+1,bw-2,bh-2);
+      // Highlight top edge
+      x.fillStyle=`rgba(255,255,255,${.03+Math.random()*.02})`;
+      x.fillRect(bx+1,by+1,bw-2,1);
+    }
   }
-  const e=G.enemy,hpPct=e.mhp>0?(e.hp/e.mhp*100):0;
-  if(e.isBoss)$ea.appendChild(h('div',{className:'boss-label'},'★ BOSS ★'));
-  $ea.appendChild(h('div',{className:'enemy-icon'},e.emoji));
-  $ea.appendChild(h('div',{className:'enemy-name'},e.name));
-  $ea.appendChild(h('div',{className:'enemy-stats'},'HP '+e.hp+'/'+e.mhp+'  ATK '+e.atk+'  DEF '+e.def));
-  $ea.appendChild(h('div',{className:'ehp-bg'},h('div',{className:'ehp',style:{width:hpPct+'%'}})));
+  // Noise
+  for(let i=0;i<80;i++){
+    x.fillStyle=`rgba(${Math.random()>0.5?255:0},${Math.random()>0.5?255:0},${Math.random()>0.5?255:0},${Math.random()*.03})`;
+    x.fillRect(Math.random()*64|0,Math.random()*64|0,1,1);
+  }
+  brickTex=c;
 }
+makeBrickTex();
+
+let cf=0; // corridor animation frame
+function drawDungeon(){
+  const W=440,H=240,c=dx;
+  cf++;
+
+  // Ceiling
+  const cg=c.createLinearGradient(0,0,0,H*.42);
+  cg.addColorStop(0,'#060610');cg.addColorStop(1,'#10101e');
+  c.fillStyle=cg;c.fillRect(0,0,W,H*.42);
+
+  // Floor
+  const fg=c.createLinearGradient(0,H*.58,0,H);
+  fg.addColorStop(0,'#14141e');fg.addColorStop(1,'#1e1e28');
+  c.fillStyle=fg;c.fillRect(0,H*.58,W,H*.42);
+
+  // Vanishing point (subtle sway for walking feel)
+  const vpX=W/2+Math.sin(cf*.012)*2;
+  const vpY=H*.47+Math.cos(cf*.009)*1.5;
+
+  // Draw layered corridor depth (5 layers, back to front)
+  const layers=6;
+  for(let i=0;i<layers;i++){
+    const t=i/layers; // 0=far, 1=near
+    const tn=(i+1)/layers;
+    // Wall edges at this depth
+    const margin=60;
+    const lxF=vpX-(margin+(W/2-margin)*t);
+    const rxF=vpX+(margin+(W/2-margin)*t);
+    const lxN=vpX-(margin+(W/2-margin)*tn);
+    const rxN=vpX+(margin+(W/2-margin)*tn);
+    const yTopF=vpY-(vpY*(t*.8));
+    const yBotF=vpY+(vpY*(t*.8));
+    const yTopN=vpY-(vpY*(tn*.8));
+    const yBotN=vpY+(vpY*(tn*.8));
+
+    // Left wall segment (trapezoid with brick texture tiling)
+    c.save();
+    c.beginPath();
+    c.moveTo(lxF,yTopF);c.lineTo(lxN,yTopN);c.lineTo(lxN,yBotN);c.lineTo(lxF,yBotF);
+    c.closePath();c.clip();
+    // Darken distant layers
+    const brightness=0.3+t*0.7;
+    const pat=c.createPattern(brickTex,'repeat');
+    c.fillStyle=pat;c.fillRect(lxF-64,yTopF,lxN-lxF+128,yBotN-yTopF+64);
+    c.fillStyle=`rgba(0,0,0,${1-brightness})`;c.fillRect(lxF-64,yTopF,lxN-lxF+128,yBotN-yTopF+64);
+    c.restore();
+
+    // Right wall segment
+    c.save();
+    c.beginPath();
+    c.moveTo(rxF,yTopF);c.lineTo(rxN,yTopN);c.lineTo(rxN,yBotN);c.lineTo(rxF,yBotF);
+    c.closePath();c.clip();
+    c.fillStyle=pat;c.fillRect(rxF-64,yTopF,rxN-rxF+128,yBotN-yTopF+64);
+    c.fillStyle=`rgba(0,0,0,${1-brightness})`;c.fillRect(rxF-64,yTopF,rxN-rxF+128,yBotN-yTopF+64);
+    c.restore();
+
+    // Ceiling segment
+    c.save();
+    c.beginPath();c.moveTo(lxF,yTopF);c.lineTo(rxF,yTopF);c.lineTo(rxN,yTopN);c.lineTo(lxN,yTopN);c.closePath();c.clip();
+    c.fillStyle=`rgb(${10+t*8|0},${8+t*6|0},${16+t*10|0})`;c.fillRect(0,0,W,H);
+    c.restore();
+
+    // Floor segment
+    c.save();
+    c.beginPath();c.moveTo(lxF,yBotF);c.lineTo(rxF,yBotF);c.lineTo(rxN,yBotN);c.lineTo(lxN,yBotN);c.closePath();c.clip();
+    c.fillStyle=`rgb(${16+t*12|0},${14+t*10|0},${20+t*12|0})`;c.fillRect(0,0,W,H);
+    // Floor tile lines
+    c.strokeStyle=`rgba(60,55,80,${.08+t*.06})`;c.lineWidth=1;
+    const floorY=(yBotF+yBotN)/2;
+    c.beginPath();c.moveTo(lxF,floorY);c.lineTo(rxF,floorY);c.stroke();
+    c.restore();
+  }
+
+  // Torches (on layer 2 and 4)
+  const torchFlicker=Math.sin(cf*.07)*.3+.7;
+  [[1.5/layers, -1],[1.5/layers, 1],[3.5/layers, -1],[3.5/layers, 1]].forEach(([t,side])=>{
+    const x0=vpX+side*(60+(W/2-60)*t);
+    const y0=vpY-(vpY*t*.5);
+    // Flame
+    const fSize=3+t*4;
+    c.fillStyle=`rgba(255,180,40,${(.6+torchFlicker*.3)*t})`;
+    c.beginPath();c.arc(x0,y0-fSize,fSize*.7,0,Math.PI*2);c.fill();
+    c.fillStyle=`rgba(255,220,100,${(.4+torchFlicker*.2)*t})`;
+    c.beginPath();c.arc(x0,y0-fSize-2*Math.sin(cf*.1+t*5),fSize*.4,0,Math.PI*2);c.fill();
+    // Glow on wall
+    const glow=c.createRadialGradient(x0,y0,0,x0,y0,30+t*40);
+    glow.addColorStop(0,`rgba(255,150,40,${.08*torchFlicker*t})`);
+    glow.addColorStop(1,'rgba(255,150,40,0)');
+    c.fillStyle=glow;c.fillRect(x0-60,y0-50,120,100);
+    // Green tint (like original)
+    const gg=c.createRadialGradient(x0,y0,0,x0,y0,25+t*30);
+    gg.addColorStop(0,`rgba(100,255,100,${.03*torchFlicker*t})`);
+    gg.addColorStop(1,'rgba(100,255,100,0)');
+    c.fillStyle=gg;c.fillRect(x0-50,y0-40,100,80);
+  });
+
+  // Monster in corridor center
+  if(G.enemy){
+    const e=G.enemy;
+    const mScale=e.isBoss?1.4:1.0;
+    const mSize=50*mScale;
+    const bobY=Math.sin(cf*.04)*3;
+    const mx=vpX,my=vpY+bobY-5;
+
+    // Monster shadow on floor
+    c.fillStyle='rgba(0,0,0,0.3)';
+    c.beginPath();c.ellipse(mx,vpY+30,mSize*.5,8,0,0,Math.PI*2);c.fill();
+
+    // Monster glow
+    const mg=c.createRadialGradient(mx,my,mSize*.2,mx,my,mSize*1.2);
+    mg.addColorStop(0,e.isBoss?'rgba(200,0,60,0.15)':'rgba(150,40,40,0.1)');
+    mg.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=mg;c.fillRect(mx-mSize*1.5,my-mSize*1.5,mSize*3,mSize*3);
+
+    // Monster emoji (large)
+    c.font=`${mSize}px serif`;
+    c.textAlign='center';c.textBaseline='middle';
+    c.shadowColor=e.isBoss?'rgba(255,40,40,0.6)':'rgba(200,100,100,0.4)';
+    c.shadowBlur=20;
+    c.fillText(e.emoji,mx,my);
+    c.shadowBlur=0;
+
+    // Boss crown effect
+    if(e.isBoss){
+      c.font='16px serif';
+      c.fillText('👑',mx,my-mSize*.55);
+    }
+  }
+
+  // Fog / vignette
+  const fog=c.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.85);
+  fog.addColorStop(0,'rgba(0,0,0,0)');fog.addColorStop(1,'rgba(6,6,12,0.6)');
+  c.fillStyle=fog;c.fillRect(0,0,W,H);
+
+  // Floor number overlay top-left
+  c.fillStyle='rgba(0,0,0,0.5)';
+  c.beginPath();c.arc(28,24,20,0,Math.PI*2);c.fill();
+  c.font='bold 11px sans-serif';c.textAlign='center';c.textBaseline='middle';
+  c.fillStyle='#c8b8ff';c.fillText('F'+G.floor,28,24);
+}
+
+function renderEnemyHUD(){
+  $eh.innerHTML='';
+  if(!G.enemy)return;
+  const e=G.enemy,hpPct=e.mhp>0?(e.hp/e.mhp*100):0;
+  $eh.appendChild(h('div',{className:'eh-name'},(e.isBoss?'★ ':'')+e.name));
+  $eh.appendChild(h('div',{className:'eh-hp-bg'},h('div',{className:'eh-hp',style:{width:hpPct+'%'}})));
+  $eh.appendChild(h('div',{className:'eh-stats'},'HP '+e.hp+'/'+e.mhp));
+}
+
+function renderEnemy(){renderEnemyHUD()}
 
 function renderLog(){
   $la.innerHTML='';
@@ -448,6 +620,10 @@ function init(){
 }
 
 document.addEventListener('click',()=>ea(),{once:true});
+
+// Dungeon canvas animation loop
+function animLoop(){drawDungeon();requestAnimationFrame(animLoop)}
+animLoop();
 init();
 </script>
 </body>
