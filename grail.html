@@ -219,9 +219,12 @@ function drawDungeon(){
   const W=cW,H=cH,c=dx;cf++;
   // Clear
   c.fillStyle='#08080f';c.fillRect(0,0,W,H);
+  // Walk animation: walkT 0→1 pushes camera forward (vanishing point shifts, walls spread)
+  const wt=G.walkT||0;
+  const walkZoom=wt*.15; // how much "closer" we are (0=start, .15=arrived)
   const vpX=W/2+Math.sin(cf*.01)*2;
-  const vpY=H*.44+Math.cos(cf*.008)*1.5;
-  const wo=(cf*.025)%1; // walk offset for floor tiles
+  const vpY=H*(.44+walkZoom*.3)+Math.cos(cf*.008)*1.5;
+  const wo=(cf*.03+wt*3)%1; // walk offset for floor tiles - speeds up during walk
 
   // Ceiling gradient
   const cg=c.createLinearGradient(0,0,0,vpY);cg.addColorStop(0,'#060610');cg.addColorStop(1,'#10101e');
@@ -231,7 +234,7 @@ function drawDungeon(){
   c.fillStyle=fg;c.fillRect(0,vpY,W,H-vpY);
 
   // Draw corridor layers (back to front)
-  const layers=7,margin=55;
+  const layers=7,margin=55-walkZoom*80; // walls spread as we walk forward
   const pat=c.createPattern(brickTex,'repeat');
   for(let i=0;i<layers;i++){
     const t=i/layers,tn=(i+1)/layers;
@@ -301,12 +304,10 @@ function drawDungeon(){
     if(e.isBoss){c.font=`${sz*.3}px serif`;c.fillText('👑',mx,my-sz*.55)}
   }
 
-  // Walk phase: show "advancing" text
+  // Walk phase: darkened corridor, advancing feel
   if(G.phase==='walk'){
-    c.globalAlpha=.5+Math.sin(cf*.04)*.3;
-    c.font='bold 14px sans-serif';c.textAlign='center';c.fillStyle='#8878aa';
-    c.fillText('Floor '+G.floor+' …',W/2,vpY-10);
-    c.globalAlpha=1;
+    // Subtle overlay that lightens as we approach
+    c.fillStyle=`rgba(0,0,0,${.15*(1-wt)})`;c.fillRect(0,0,W,H);
   }
 
   // Floor label under monster (or center during walk)
@@ -443,11 +444,20 @@ function unequip(ci,slot){
 // ── Game Flow ──
 let timer=null;
 
+let walkAnim=null;
 function startWalk(){
-  G.phase='walk';G.enemy=null;G.inCombat=false;
+  G.phase='walk';G.enemy=null;G.inCombat=false;G.walkT=0;
   renderEnemyHUD();
-  // Walk for ~1.5 seconds then start combat
-  timer=setTimeout(()=>startCombat(),1500/G.speed);
+  if(walkAnim)cancelAnimationFrame(walkAnim);
+  const dur=1400/G.speed; // walk duration ms
+  const t0=performance.now();
+  function step(now){
+    const elapsed=now-t0;
+    G.walkT=Math.min(1,elapsed/dur);
+    if(G.walkT<1){walkAnim=requestAnimationFrame(step)}
+    else{G.walkT=0;startCombat()}
+  }
+  walkAnim=requestAnimationFrame(step);
 }
 
 function startCombat(){
