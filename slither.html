@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slither Arena - 蛇闘技場</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;overflow:hidden;font-family:'Segoe UI',sans-serif;color:#fff;cursor:crosshair}
+canvas{display:block}
+#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#leaderboard{position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px;min-width:200px;font-size:13px}
+#leaderboard h3{margin-bottom:6px;font-size:14px;color:#aaa;text-transform:uppercase;letter-spacing:1px}
+#leaderboard .entry{display:flex;justify-content:space-between;padding:2px 0;white-space:nowrap}
+#leaderboard .entry .rank{color:#666;width:20px}
+#leaderboard .entry .name{flex:1;margin:0 8px;overflow:hidden;text-overflow:ellipsis}
+#leaderboard .entry .score{color:#8f8;font-variant-numeric:tabular-nums}
+#leaderboard .entry.me{color:#ff0;font-weight:bold}
+#killfeed{position:absolute;top:10px;left:10px;font-size:12px;max-width:300px}
+.kill-msg{padding:2px 8px;margin-bottom:2px;background:rgba(0,0,0,0.5);border-radius:4px;animation:fadeKill 4s forwards;white-space:nowrap}
+@keyframes fadeKill{0%,70%{opacity:1}100%{opacity:0}}
+#hud-bottom{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);text-align:center;font-size:13px}
+#mode-indicator{font-size:16px;font-weight:bold;letter-spacing:2px;margin-bottom:4px}
+#instructions{color:#888;font-size:11px}
+#stats{margin-bottom:4px;font-size:14px}
+#minimap-container{position:absolute;bottom:10px;right:10px}
+#minimap{border:1px solid rgba(255,255,255,0.2);border-radius:50%;background:rgba(0,0,0,0.5)}
+#snake-count{position:absolute;top:60px;left:10px;font-size:12px;color:#888}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="leaderboard"><h3>Leaderboard</h3><div id="lb-entries"></div></div>
+  <div id="killfeed"></div>
+  <div id="snake-count"></div>
+  <div id="hud-bottom">
+    <div id="mode-indicator">SPECTATING</div>
+    <div id="stats"></div>
+    <div id="instructions">Click snake to follow | Space to play | Mouse to steer | Click/Shift to boost</div>
+  </div>
+  <div id="minimap-container"><canvas id="minimap" width="150" height="150"></canvas></div>
+</div>
+<script>
+"use strict";
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const miniCanvas=document.getElementById('minimap'),mctx=miniCanvas.getContext('2d');
+const ARENA_R=2000,FOOD_MAX=500,SNAKE_COUNT=18,TICK=1000/60;
+const NAMES=["Nagini","Orochi","Jormungandr","Basilisk","Kaa","Naga","Ouroboros","Hydra","Apophis","Quetzalcoatl","Midgardsormr","Vritra","Yamata","Leviathan","Tsuchinoko","Uwabami","Nozuchi","Mamushi","Hebiko","Ryujin"];
+const COLORS=["#ff4444","#44ff44","#4488ff","#ffaa00","#ff44ff","#44ffff","#ff8844","#88ff44","#4444ff","#ffff44","#ff4488","#44ffaa","#aa44ff","#ff8888","#88ffff","#ffaa88","#88aaff","#aaff88"];
+const AI_TYPES=["coil","dart","farmer","aggressive","coil","dart","farmer","aggressive","farmer","farmer","dart","aggressive","coil","farmer","dart","farmer","farmer","aggressive"];
+
+let W,H;
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}
+resize();addEventListener('resize',resize);
+
+// Audio
+const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+function ensureAudio(){if(audioCtx.state==='suspended')audioCtx.resume()}
+function playTone(freq,dur,vol=0.1,type='sine'){
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.value=freq;
+  g.gain.setValueAtTime(vol,audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur);
+  o.connect(g);g.connect(audioCtx.destination);
+  o.start();o.stop(audioCtx.currentTime+dur);
+}
+function sndEat(){playTone(800+Math.random()*400,0.05,0.06)}
+function sndCrunch(sz){playTone(200+Math.random()*100,0.15,Math.min(0.15,sz*0.01),'square')}
+function sndDeath(){playTone(120,0.4,0.15,'sawtooth');playTone(80,0.6,0.1,'square')}
+function sndBoost(){playTone(400,0.08,0.03,'triangle')}
+function sndNearMiss(){playTone(600,0.2,0.05,'sine')}
+// ambient drone
+let ambientOn=false;
+function startAmbient(){
+  if(ambientOn)return;ambientOn=true;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='sine';o.frequency.value=55;g.gain.value=0.02;
+  o.connect(g);g.connect(audioCtx.destination);o.start();
+  const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();
+  o2.type='sine';o2.frequency.value=82.5;g2.gain.value=0.015;
+  o2.connect(g2);g2.connect(audioCtx.destination);o2.start();
+}
+
+// State
+let snakes=[],foods=[],particles=[],camera={x:0,y:0,zoom:0.5,targetZoom:0.5};
+let mode='spectate',followIdx=0,playerIdx=-1;
+let mouseX=W/2,mouseY=H/2,mouseDown=false,shiftDown=false;
+let screenFlash=0,killFeedMsgs=[];
+let nearMissCooldown=0;
+
+function rng(a,b){return a+Math.random()*(b-a)}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function angle(a,b){return Math.atan2(b.y-a.y,b.x-a.x)}
+function lerp(a,b,t){return a+(b-a)*t}
+function lerpAngle(a,b,t){
+  let d=b-a;
+  while(d>Math.PI)d-=2*Math.PI;
+  while(d<-Math.PI)d+=2*Math.PI;
+  return a+d*t;
+}
+function hslToHex(h,s,l){
+  const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;
+  let r,g,b;
+  if(h<60){r=c;g=x;b=0}else if(h<120){r=x;g=c;b=0}else if(h<180){r=0;g=c;b=x}
+  else if(h<240){r=0;g=x;b=c}else if(h<300){r=x;g=0;b=c}else{r=c;g=0;b=x}
+  r=Math.round((r+m)*255);g=Math.round((g+m)*255);b=Math.round((b+m)*255);
+  return `rgb(${r},${g},${b})`;
+}
+
+function spawnPos(){
+  const a=Math.random()*Math.PI*2,r=Math.random()*(ARENA_R*0.7);
+  return{x:Math.cos(a)*r,y:Math.sin(a)*r};
+}
+
+function createSnake(idx,isRespawn=false){
+  const pos=spawnPos();
+  const dir=Math.random()*Math.PI*2;
+  const segs=[];
+  for(let i=0;i<10;i++){
+    segs.push({x:pos.x-Math.cos(dir)*i*4,y:pos.y-Math.sin(dir)*i*4});
+  }
+  return{
+    idx,name:NAMES[idx%NAMES.length],color:COLORS[idx%COLORS.length],
+    segs,dir,targetDir:dir,speed:2.5,baseSpeed:2.5,
+    alive:true,boosting:false,boostTimer:0,
+    length:10,kills:0,
+    aiType:AI_TYPES[idx%AI_TYPES.length],
+    aiTimer:0,aiTarget:null,aiWander:Math.random()*Math.PI*2,
+    respawnTimer:0,invincible:isRespawn?60:0,
+    nearMiss:0
+  };
+}
+
+function createFood(x,y,size=2,color=null){
+  return{x,y,size,color:color||hslToHex(Math.random()*360,0.8,0.6),pulse:Math.random()*Math.PI*2,isDeath:size>3};
+}
+
+function init(){
+  snakes=[];foods=[];particles=[];
+  for(let i=0;i<SNAKE_COUNT;i++)snakes.push(createSnake(i));
+  for(let i=0;i<FOOD_MAX;i++){
+    const p=spawnPos();
+    foods.push(createFood(p.x,p.y));
+  }
+  followIdx=0;
+}
+init();
+
+function addKillMsg(killer,victim){
+  const msg=document.createElement('div');
+  msg.className='kill-msg';
+  msg.innerHTML=`<span style="color:${killer.color}">${killer.name}</span> killed <span style="color:${victim.color}">${victim.name}</span>`;
+  const feed=document.getElementById('killfeed');
+  feed.appendChild(msg);
+  setTimeout(()=>msg.remove(),4000);
+}
+
+function killSnake(snake,killer=null){
+  if(!snake.alive)return;
+  snake.alive=false;
+  snake.respawnTimer=180;
+  // spawn death food
+  for(let i=0;i<snake.segs.length;i+=2){
+    const s=snake.segs[i];
+    foods.push(createFood(s.x+rng(-5,5),s.y+rng(-5,5),4+Math.random()*3,snake.color));
+  }
+  // particles
+  const head=snake.segs[0];
+  for(let i=0;i<30;i++){
+    const a=Math.random()*Math.PI*2,sp=rng(1,5);
+    particles.push({x:head.x,y:head.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:60,color:snake.color,size:rng(2,5)});
+  }
+  if(killer){killer.kills++;addKillMsg(killer,snake)}
+  sndDeath();
+  if(playerIdx===snake.idx){mode='spectate';playerIdx=-1}
+  if(followIdx===snake.idx)followIdx=(followIdx+1)%SNAKE_COUNT;
+}
+
+function respawnSnake(snake){
+  const ns=createSnake(snake.idx,true);
+  Object.assign(snake,ns);
+}
+
+function segRadius(snake,i){
+  const t=i/Math.max(snake.segs.length-1,1);
+  const base=3+snake.length*0.04;
+  return Math.min(base,12)*(1-t*0.4);
+}
+
+function updateSnake(snake,dt){
+  if(!snake.alive){
+    snake.respawnTimer--;
+    if(snake.respawnTimer<=0)respawnSnake(snake);
+    return;
+  }
+  if(snake.invincible>0)snake.invincible--;
+
+  const isPlayer=snake.idx===playerIdx;
+  const head=snake.segs[0];
+
+  // AI or player steering
+  if(isPlayer){
+    const wx=(mouseX-W/2)/camera.zoom+camera.x;
+    const wy=(mouseY-H/2)/camera.zoom+camera.y;
+    snake.targetDir=Math.atan2(wy-head.y,wx-head.x);
+    snake.boosting=mouseDown||shiftDown;
+  }else{
+    updateAI(snake);
+  }
+
+  // Turn toward target
+  const turnRate=0.08*(snake.boosting?1.2:1);
+  snake.dir=lerpAngle(snake.dir,snake.targetDir,turnRate);
+
+  // Speed
+  const sizePenalty=Math.max(0,snake.length-20)*0.003;
+  snake.baseSpeed=2.5-Math.min(sizePenalty,0.7);
+  snake.speed=snake.boosting&&snake.length>12?snake.baseSpeed*1.8:snake.baseSpeed;
+
+  // Boost cost
+  if(snake.boosting&&snake.length>12){
+    snake.boostTimer++;
+    if(snake.boostTimer%8===0&&snake.segs.length>10){
+      snake.segs.pop();
+      snake.length=Math.max(snake.length-1,10);
+      // boost particles
+      const tail=snake.segs[snake.segs.length-1];
+      particles.push({x:tail.x,y:tail.y,vx:rng(-1,1),vy:rng(-1,1),life:20,color:snake.color,size:2});
+    }
+  }else{
+    snake.boostTimer=0;
+  }
+
+  // Move head
+  const nx=head.x+Math.cos(snake.dir)*snake.speed;
+  const ny=head.y+Math.sin(snake.dir)*snake.speed;
+
+  // Wall check
+  const dFromCenter=Math.hypot(nx,ny);
+  if(dFromCenter>ARENA_R-20){
+    killSnake(snake);return;
+  }
+
+  // Insert new head position
+  snake.segs.unshift({x:nx,y:ny});
+
+  // Trim to length
+  while(snake.segs.length>snake.length)snake.segs.pop();
+
+  // Eat food
+  for(let i=foods.length-1;i>=0;i--){
+    const f=foods[i];
+    const d=Math.hypot(head.x-f.x,head.y-f.y);
+    if(d<segRadius(snake,0)+f.size+2){
+      const gain=f.isDeath?3:1;
+      snake.length+=gain;
+      if(f.isDeath){sndCrunch(f.size);if(isPlayer)screenFlash=8}
+      else sndEat();
+      foods.splice(i,1);
+    }
+  }
+
+  // Collision with other snakes
+  if(snake.invincible<=0){
+    for(const other of snakes){
+      if(!other.alive||other.idx===snake.idx)continue;
+      // check head vs other body (skip first 5 segs to avoid head-on both dying instantly)
+      for(let i=3;i<other.segs.length;i++){
+        const s=other.segs[i];
+        const d=Math.hypot(head.x-s.x,head.y-s.y);
+        const threshold=segRadius(snake,0)+segRadius(other,i);
+        if(d<threshold){
+          killSnake(snake,other);return;
+        }
+      }
+      // near miss detection
+      if(other.segs.length>5){
+        const oh=other.segs[0];
+        const hd=Math.hypot(head.x-oh.x,head.y-oh.y);
+        if(hd<30&&hd>10&&nearMissCooldown<=0){
+          nearMissCooldown=60;
+          snake.nearMiss=20;other.nearMiss=20;
+          sndNearMiss();
+        }
+      }
+    }
+  }
+}
+
+function updateAI(snake){
+  const head=snake.segs[0];
+  snake.aiTimer--;
+
+  // Wall avoidance (high priority)
+  const dWall=Math.hypot(head.x,head.y);
+  if(dWall>ARENA_R*0.8){
+    snake.targetDir=Math.atan2(-head.y,-head.x);
+    snake.boosting=dWall>ARENA_R*0.9;
+    return;
+  }
+
+  // Avoid nearby snake bodies
+  let avoidX=0,avoidY=0,avoiding=false;
+  for(const other of snakes){
+    if(!other.alive||other.idx===snake.idx)continue;
+    for(let i=0;i<other.segs.length;i+=3){
+      const s=other.segs[i];
+      const d=Math.hypot(head.x-s.x,head.y-s.y);
+      if(d<40){
+        const a=Math.atan2(head.y-s.y,head.x-s.x);
+        const str=1/(d+1)*20;
+        avoidX+=Math.cos(a)*str;avoidY+=Math.sin(a)*str;
+        avoiding=true;
+      }
+    }
+  }
+  if(avoiding){
+    snake.targetDir=Math.atan2(avoidY,avoidX);
+    snake.boosting=Math.random()<0.3;
+    return;
+  }
+
+  if(snake.aiTimer>0)return;
+  snake.aiTimer=10+Math.random()*20;
+
+  const type=snake.aiType;
+
+  if(type==='farmer'||Math.random()<0.3){
+    // Find nearest food cluster
+    let bestD=Infinity,bestF=null;
+    for(const f of foods){
+      const d=Math.hypot(head.x-f.x,head.y-f.y);
+      const score=d-(f.isDeath?200:0);
+      if(score<bestD){bestD=score;bestF=f}
+    }
+    if(bestF&&bestD<600){
+      snake.targetDir=Math.atan2(bestF.y-head.y,bestF.x-head.x);
+      snake.boosting=bestF.isDeath&&bestD>100;
+    }else{
+      snake.aiWander+=rng(-0.5,0.5);
+      snake.targetDir=snake.aiWander;
+      snake.boosting=false;
+    }
+  }
+
+  if(type==='aggressive'){
+    let bestD=Infinity,target=null;
+    for(const other of snakes){
+      if(!other.alive||other.idx===snake.idx)continue;
+      if(other.length<snake.length*0.8){
+        const d=dist(head,other.segs[0]);
+        if(d<bestD){bestD=d;target=other}
+      }
+    }
+    if(target&&bestD<400){
+      // try to cut in front
+      const th=target.segs[0];
+      const ahead={x:th.x+Math.cos(target.dir)*60,y:th.y+Math.sin(target.dir)*60};
+      snake.targetDir=Math.atan2(ahead.y-head.y,ahead.x-head.x);
+      snake.boosting=bestD<200&&snake.length>15;
+    }else{
+      snake.aiWander+=rng(-0.3,0.3);
+      snake.targetDir=snake.aiWander;
+      snake.boosting=false;
+    }
+  }
+
+  if(type==='coil'){
+    if(snake.length>40){
+      let bestD=Infinity,target=null;
+      for(const other of snakes){
+        if(!other.alive||other.idx===snake.idx||other.length>=snake.length)continue;
+        const d=dist(head,other.segs[0]);
+        if(d<bestD&&d<300){bestD=d;target=other}
+      }
+      if(target){
+        // circle around target
+        const a=Math.atan2(target.segs[0].y-head.y,target.segs[0].x-head.x);
+        snake.targetDir=a+Math.PI*0.4;
+        snake.boosting=false;
+      }else{
+        snake.aiWander+=rng(-0.3,0.3);
+        snake.targetDir=snake.aiWander;
+      }
+    }else{
+      // be a farmer until big enough
+      let bestD=Infinity,bestF=null;
+      for(const f of foods){
+        const d=Math.hypot(head.x-f.x,head.y-f.y);
+        if(d<bestD){bestD=d;bestF=f}
+      }
+      if(bestF)snake.targetDir=Math.atan2(bestF.y-head.y,bestF.x-head.x);
+      snake.boosting=false;
+    }
+  }
+
+  if(type==='dart'){
+    // look for crossing opportunities
+    let bestScore=-1,bestDir=snake.aiWander;
+    for(const other of snakes){
+      if(!other.alive||other.idx===snake.idx)continue;
+      const oh=other.segs[0];
+      const d=dist(head,oh);
+      if(d<300&&d>60){
+        // dash across their path
+        const perpDir=other.dir+Math.PI/2*(Math.random()>0.5?1:-1);
+        const score=(300-d)/300;
+        if(score>bestScore){bestScore=score;bestDir=Math.atan2(oh.y-head.y,oh.x-head.x)}
+      }
+    }
+    if(bestScore>0.3){
+      snake.targetDir=bestDir;
+      snake.boosting=snake.length>15;
+    }else{
+      let bestD=Infinity,bestF=null;
+      for(const f of foods){
+        const d=Math.hypot(head.x-f.x,head.y-f.y);
+        if(d<bestD){bestD=d;bestF=f}
+      }
+      if(bestF)snake.targetDir=Math.atan2(bestF.y-head.y,bestF.x-head.x);
+      snake.boosting=false;
+    }
+  }
+}
+
+function update(){
+  nearMissCooldown=Math.max(0,nearMissCooldown-1);
+  if(screenFlash>0)screenFlash--;
+
+  // Update snakes
+  for(const s of snakes)updateSnake(s,1);
+
+  // Update particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vx*=0.95;p.vy*=0.95;p.life--;
+    if(p.life<=0)particles.splice(i,1);
+  }
+
+  // Refill food
+  while(foods.length<FOOD_MAX){
+    const p=spawnPos();
+    foods.push(createFood(p.x,p.y));
+  }
+
+  // Camera
+  let target=snakes[followIdx];
+  if(playerIdx>=0)target=snakes[playerIdx];
+  if(target&&target.alive){
+    const h=target.segs[0];
+    camera.x=lerp(camera.x,h.x,0.05);
+    camera.y=lerp(camera.y,h.y,0.05);
+    camera.targetZoom=Math.max(0.3,0.7-target.length*0.002);
+  }else{
+    // find next alive
+    for(let i=0;i<snakes.length;i++){
+      followIdx=(followIdx+1)%snakes.length;
+      if(snakes[followIdx].alive)break;
+    }
+  }
+  camera.zoom=lerp(camera.zoom,camera.targetZoom,0.03);
+
+  // Update near miss glow
+  for(const s of snakes)if(s.nearMiss>0)s.nearMiss--;
+}
+
+function render(){
+  ctx.fillStyle='#0a0a0a';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+  ctx.translate(W/2,H/2);
+  ctx.scale(camera.zoom,camera.zoom);
+  ctx.translate(-camera.x,-camera.y);
+
+  // Grid
+  const gridSize=80;
+  const startX=Math.floor((camera.x-W/camera.zoom/2)/gridSize)*gridSize;
+  const startY=Math.floor((camera.y-H/camera.zoom/2)/gridSize)*gridSize;
+  const endX=camera.x+W/camera.zoom/2;
+  const endY=camera.y+H/camera.zoom/2;
+  ctx.strokeStyle='rgba(255,255,255,0.04)';
+  ctx.lineWidth=1;
+  for(let x=startX;x<=endX;x+=gridSize){
+    ctx.beginPath();ctx.moveTo(x,-ARENA_R);ctx.lineTo(x,ARENA_R);ctx.stroke();
+  }
+  for(let y=startY;y<=endY;y+=gridSize){
+    ctx.beginPath();ctx.moveTo(-ARENA_R,y);ctx.lineTo(ARENA_R,y);ctx.stroke();
+  }
+
+  // Arena boundary glow
+  ctx.beginPath();ctx.arc(0,0,ARENA_R,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,50,50,0.3)';ctx.lineWidth=20;ctx.stroke();
+  ctx.strokeStyle='rgba(255,50,50,0.15)';ctx.lineWidth=60;ctx.stroke();
+  ctx.strokeStyle='rgba(255,50,50,0.05)';ctx.lineWidth=120;ctx.stroke();
+
+  // Radial gradient center
+  const cg=ctx.createRadialGradient(0,0,0,0,0,ARENA_R);
+  cg.addColorStop(0,'rgba(20,40,60,0.15)');cg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cg;ctx.fillRect(-ARENA_R,-ARENA_R,ARENA_R*2,ARENA_R*2);
+
+  // Food
+  const now=performance.now()*0.003;
+  for(const f of foods){
+    // Culling
+    const sx=(f.x-camera.x)*camera.zoom,sy=(f.y-camera.y)*camera.zoom;
+    if(Math.abs(sx)>W/2+50||Math.abs(sy)>H/2+50)continue;
+
+    const pulse=1+Math.sin(now+f.pulse)*0.2;
+    const r=f.size*pulse;
+    ctx.beginPath();ctx.arc(f.x,f.y,r,0,Math.PI*2);
+    ctx.fillStyle=f.color;ctx.fill();
+    if(f.isDeath){
+      ctx.beginPath();ctx.arc(f.x,f.y,r*1.8,0,Math.PI*2);
+      ctx.fillStyle=f.color.replace(')',',0.15)').replace('rgb','rgba');
+      ctx.fill();
+    }
+  }
+
+  // Snakes
+  for(const snake of snakes){
+    if(!snake.alive)continue;
+    const segs=snake.segs;
+    if(segs.length<2)continue;
+
+    // Culling
+    const sh=segs[0];
+    const sdx=(sh.x-camera.x)*camera.zoom,sdy=(sh.y-camera.y)*camera.zoom;
+    if(Math.abs(sdx)>W/2+300||Math.abs(sdy)>H/2+300){
+      // still might be visible if long, but skip for perf unless really close
+    }
+
+    // Body segments
+    for(let i=segs.length-1;i>=0;i--){
+      const s=segs[i];
+      const t=i/Math.max(segs.length-1,1);
+      const r=segRadius(snake,i);
+      const spread=snake.boosting?1.1:1;
+
+      // Parse color for gradient
+      const brightness=1-t*0.5;
+      const alpha=snake.invincible>0?(0.4+Math.sin(performance.now()*0.02)*0.3):1;
+
+      ctx.beginPath();
+      ctx.arc(s.x,s.y,r*spread,0,Math.PI*2);
+      ctx.fillStyle=snake.color;
+      ctx.globalAlpha=brightness*alpha;
+      ctx.fill();
+      ctx.globalAlpha=1;
+    }
+
+    // Head glow
+    const headR=segRadius(snake,0);
+    ctx.save();
+    ctx.shadowColor=snake.color;
+    ctx.shadowBlur=15;
+    ctx.beginPath();ctx.arc(sh.x,sh.y,headR,0,Math.PI*2);
+    ctx.fillStyle=snake.color;
+    ctx.fill();
+    ctx.restore();
+
+    // Near miss glow
+    if(snake.nearMiss>0){
+      ctx.save();
+      ctx.shadowColor='#fff';ctx.shadowBlur=20+snake.nearMiss;
+      ctx.beginPath();ctx.arc(sh.x,sh.y,headR*1.5,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,0.2)';ctx.fill();
+      ctx.restore();
+    }
+
+    // Eyes
+    const eyeOff=headR*0.5;
+    const eyeR=headR*0.35;
+    const pupilR=eyeR*0.5;
+    const eDir=snake.dir;
+    for(let side=-1;side<=1;side+=2){
+      const ex=sh.x+Math.cos(eDir-side*0.5)*eyeOff;
+      const ey=sh.y+Math.sin(eDir-side*0.5)*eyeOff;
+      ctx.beginPath();ctx.arc(ex,ey,eyeR,0,Math.PI*2);
+      ctx.fillStyle='#fff';ctx.fill();
+      ctx.beginPath();ctx.arc(ex+Math.cos(eDir)*pupilR*0.5,ey+Math.sin(eDir)*pupilR*0.5,pupilR,0,Math.PI*2);
+      ctx.fillStyle='#111';ctx.fill();
+    }
+
+    // Name above head
+    if(camera.zoom>0.2){
+      ctx.fillStyle='rgba(255,255,255,0.7)';
+      ctx.font=`${Math.round(11/camera.zoom*0.5)}px sans-serif`;
+      ctx.textAlign='center';
+      ctx.fillText(snake.name,sh.x,sh.y-headR-8);
+    }
+  }
+
+  // Particles
+  for(const p of particles){
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size*(p.life/60),0,Math.PI*2);
+    ctx.fillStyle=p.color;ctx.globalAlpha=p.life/60;ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+
+  // Screen flash
+  if(screenFlash>0){
+    ctx.fillStyle=`rgba(255,255,200,${screenFlash*0.03})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // UI updates
+  updateUI();
+  renderMinimap();
+}
+
+function updateUI(){
+  // Leaderboard
+  const sorted=[...snakes].filter(s=>s.alive).sort((a,b)=>b.length-a.length).slice(0,10);
+  const entries=document.getElementById('lb-entries');
+  let html='';
+  sorted.forEach((s,i)=>{
+    const isMe=s.idx===playerIdx;
+    html+=`<div class="entry${isMe?' me':''}"><span class="rank">${i+1}</span><span class="name" style="color:${s.color}">${s.name}</span><span class="score">${s.length}</span></div>`;
+  });
+  entries.innerHTML=html;
+
+  // Mode & stats
+  const modeEl=document.getElementById('mode-indicator');
+  const statsEl=document.getElementById('stats');
+  if(playerIdx>=0&&snakes[playerIdx].alive){
+    modeEl.textContent='PLAYING';
+    modeEl.style.color='#4f4';
+    const ps=snakes[playerIdx];
+    const rank=snakes.filter(s=>s.alive).sort((a,b)=>b.length-a.length).findIndex(s=>s.idx===playerIdx)+1;
+    statsEl.textContent=`Length: ${ps.length} | Rank: #${rank} | Kills: ${ps.kills}`;
+  }else{
+    modeEl.textContent='SPECTATING';
+    modeEl.style.color='#aaa';
+    const fs=snakes[followIdx];
+    statsEl.textContent=fs&&fs.alive?`Following: ${fs.name} (${fs.length})`:'';
+  }
+
+  document.getElementById('snake-count').textContent=`Snakes: ${snakes.filter(s=>s.alive).length}/${SNAKE_COUNT}`;
+}
+
+function renderMinimap(){
+  const s=150,r=s/2;
+  mctx.clearRect(0,0,s,s);
+  mctx.fillStyle='rgba(0,0,0,0.5)';
+  mctx.beginPath();mctx.arc(r,r,r,0,Math.PI*2);mctx.fill();
+
+  // boundary
+  mctx.strokeStyle='rgba(255,50,50,0.3)';mctx.lineWidth=2;
+  mctx.beginPath();mctx.arc(r,r,r-2,0,Math.PI*2);mctx.stroke();
+
+  const scale=r/ARENA_R;
+  for(const snake of snakes){
+    if(!snake.alive)continue;
+    const h=snake.segs[0];
+    const mx=r+h.x*scale,my=r+h.y*scale;
+    mctx.beginPath();mctx.arc(mx,my,Math.max(2,snake.length*0.03),0,Math.PI*2);
+    mctx.fillStyle=snake.idx===playerIdx?'#fff':snake.color;
+    mctx.fill();
+  }
+
+  // camera view rect
+  const vw=(W/camera.zoom)*scale,vh=(H/camera.zoom)*scale;
+  const vx=r+camera.x*scale-vw/2,vy=r+camera.y*scale-vh/2;
+  mctx.strokeStyle='rgba(255,255,255,0.3)';mctx.lineWidth=1;
+  mctx.strokeRect(vx,vy,vw,vh);
+}
+
+// Input
+addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY});
+addEventListener('mousedown',e=>{
+  ensureAudio();startAmbient();
+  mouseDown=true;
+  if(mode==='spectate'&&playerIdx<0){
+    // Check if clicking a snake
+    const wx=(e.clientX-W/2)/camera.zoom+camera.x;
+    const wy=(e.clientY-H/2)/camera.zoom+camera.y;
+    let bestD=50/camera.zoom,bestI=-1;
+    for(const s of snakes){
+      if(!s.alive)continue;
+      const d=Math.hypot(s.segs[0].x-wx,s.segs[0].y-wy);
+      if(d<bestD){bestD=d;bestI=s.idx}
+    }
+    if(bestI>=0)followIdx=bestI;
+  }
+});
+addEventListener('mouseup',()=>mouseDown=false);
+addEventListener('keydown',e=>{
+  ensureAudio();startAmbient();
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(playerIdx<0){
+      playerIdx=followIdx;
+      mode='play';
+    }
+  }
+  if(e.code==='Escape'){
+    playerIdx=-1;mode='spectate';
+  }
+  if(e.key==='Shift')shiftDown=true;
+});
+addEventListener('keyup',e=>{
+  if(e.key==='Shift')shiftDown=false;
+});
+addEventListener('wheel',e=>{
+  camera.targetZoom=Math.max(0.15,Math.min(1.5,camera.targetZoom-e.deltaY*0.001));
+});
+
+// Game loop
+let lastTime=performance.now(),acc=0;
+function loop(now){
+  const dt=Math.min(now-lastTime,100);
+  lastTime=now;
+  acc+=dt;
+  while(acc>=TICK){update();acc-=TICK}
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -130,10 +130,16 @@ const PALETTES = [
   ['#ffa502','#e67e22'],['#ff4757','#c0392b'],['#2ed573','#27ae60'],
   ['#1e90ff','#3742fa'],['#eccc68','#f1c40f']
 ];
-const PERSONALITY = ['aggressive','aggressive','cautious','cautious','cautious',
-  'opportunist','opportunist','hunter','hunter','aggressive',
-  'cautious','opportunist','hunter','aggressive','cautious',
-  'opportunist','hunter','aggressive'];
+// 5 personality types with distinct behaviors
+// aggressive: relentless chaser, never gives up pursuit, splits aggressively
+// cautious: paranoid runner, flees early and far, only eats food
+// opportunist: circles fights, swoops in on weakened targets
+// hunter: patient stalker, predicts movement, ambushes from blind spots
+// bully: targets the smallest cell specifically, chases persistently, gives up on equal/bigger
+const PERSONALITY = ['aggressive','cautious','opportunist','hunter','bully',
+  'aggressive','cautious','opportunist','hunter','bully',
+  'aggressive','cautious','opportunist','hunter','bully',
+  'aggressive','cautious','bully'];
 
 // ── Audio ──
 let audioCtx = null;
@@ -302,75 +308,127 @@ function aiThink(c) {
 
   const senseRange = 300 + r * 3;
 
+  // Find smallest cell (for bully)
+  let smallestCell = null, smallestMass = Infinity;
+  for (const o of cells) {
+    if (o === c || o.idx === c.idx) continue;
+    if (o.mass < smallestMass && c.mass > o.mass * 1.15) { smallestCell = o; smallestMass = o.mass; }
+  }
+
   switch (c.personality) {
     case 'aggressive':
-      if (nearestPrey && nearestPreyD < senseRange * 1.5) {
+      // Relentless: chases prey across huge range, never gives up, splits eagerly
+      if (nearestPrey && nearestPreyD < senseRange * 2.5) {
         tx = nearestPrey.x; ty = nearestPrey.y;
-        if (nearestPreyD < r * 4 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0 && c.mass > nearestPrey.mass * 2.5) {
+        // Aggressively splits at longer range than others
+        if (nearestPreyD < r * 6 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0 && c.mass > nearestPrey.mass * 2.0) {
           wantSplit = true;
         }
-      } else if (nearestThreat && nearestThreatD < senseRange * 0.7) {
-        tx = c.x - (nearestThreat.x - c.x); ty = c.y - (nearestThreat.y - c.y);
+      } else if (nearestThreat && nearestThreatD < senseRange * 0.4) {
+        // Only runs when threat is VERY close (stubborn)
+        tx = c.x - (nearestThreat.x - c.x) * 0.8;
+        ty = c.y - (nearestThreat.y - c.y) * 0.8;
       } else if (nearestFood) {
         tx = nearestFood.x; ty = nearestFood.y;
       }
       break;
 
     case 'cautious':
-      if (nearestThreat && nearestThreatD < senseRange) {
-        tx = c.x - (nearestThreat.x - c.x) * 2;
-        ty = c.y - (nearestThreat.y - c.y) * 2;
+      // Paranoid: enormous flee range, runs fast and far, only eats food when coast is clear
+      if (nearestThreat && nearestThreatD < senseRange * 1.8) {
+        // Flee in a wide arc (not straight back) to be unpredictable
+        const fleeDx = c.x - nearestThreat.x, fleeDy = c.y - nearestThreat.y;
+        const jitter = Math.sin(time * 0.05 + c.id) * 0.5;
+        tx = c.x + fleeDx * 3 + fleeDy * jitter;
+        ty = c.y + fleeDy * 3 - fleeDx * jitter;
+      } else if (nearestPrey && nearestPreyD < senseRange * 0.3 && c.mass > nearestPrey.mass * 3) {
+        // Only attacks if MUCH bigger and very close (free meal)
+        tx = nearestPrey.x; ty = nearestPrey.y;
       } else if (nearestFood) {
         tx = nearestFood.x; ty = nearestFood.y;
       }
       break;
 
     case 'opportunist':
-      // Look for cells fighting (two big cells near each other)
+      // Vulture: circles fights at safe distance, swoops in on weakened survivors
       let fightCenter = null;
       for (let i = 0; i < cells.length; i++) {
         for (let j = i + 1; j < cells.length; j++) {
           const a = cells[i], b = cells[j];
           if (a === c || b === c) continue;
-          if (a.mass > 50 && b.mass > 50 && dist(a, b) < massToRadius(a.mass) + massToRadius(b.mass) + 100) {
+          if (a.mass > 40 && b.mass > 40 && dist(a, b) < massToRadius(a.mass) + massToRadius(b.mass) + 120) {
             fightCenter = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
             break;
           }
         }
         if (fightCenter) break;
       }
-      if (fightCenter && Math.hypot(c.x - fightCenter.x, c.y - fightCenter.y) < senseRange * 2) {
-        // Circle around the fight at a safe distance
+      if (fightCenter && Math.hypot(c.x - fightCenter.x, c.y - fightCenter.y) < senseRange * 2.5) {
         const dx = c.x - fightCenter.x, dy = c.y - fightCenter.y;
         const fd = Math.hypot(dx, dy);
-        const idealDist = 250;
-        if (fd < idealDist - 50) {
-          tx = c.x + dx; ty = c.y + dy;
-        } else if (fd > idealDist + 50) {
+        const idealDist = 200 + r;
+        if (fd < idealDist - 40) {
+          tx = c.x + dx * 1.5; ty = c.y + dy * 1.5;
+        } else if (fd > idealDist + 60) {
           tx = fightCenter.x; ty = fightCenter.y;
         } else {
-          // orbit
-          tx = c.x - dy * 0.5; ty = c.y + dx * 0.5;
+          // Orbit the fight smoothly
+          tx = c.x - dy * 0.6; ty = c.y + dx * 0.6;
         }
+      } else if (nearestWeakened && nearestWeakenedD < senseRange * 1.5) {
+        // Pounce on weakened cells
+        tx = nearestWeakened.x; ty = nearestWeakened.y;
+        if (nearestWeakenedD < r * 4 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0) wantSplit = true;
       } else if (nearestThreat && nearestThreatD < senseRange * 0.6) {
         tx = c.x - (nearestThreat.x - c.x); ty = c.y - (nearestThreat.y - c.y);
-      } else if (nearestWeakened && nearestWeakenedD < senseRange) {
-        tx = nearestWeakened.x; ty = nearestWeakened.y;
       } else if (nearestFood) {
         tx = nearestFood.x; ty = nearestFood.y;
       }
       break;
 
     case 'hunter':
+      // Stalker: predicts movement, approaches from blind spot, patient
       if (nearestPrey && nearestPreyD < senseRange * 2) {
-        // Predict prey movement
-        tx = nearestPrey.x + nearestPrey.vx * 20;
-        ty = nearestPrey.y + nearestPrey.vy * 20;
+        // Predict where prey will be, approach from behind
+        const preySpeed = Math.hypot(nearestPrey.vx, nearestPrey.vy);
+        const predictFrames = Math.min(40, nearestPreyD / (preySpeed || 1));
+        const futureX = nearestPrey.x + nearestPrey.vx * predictFrames;
+        const futureY = nearestPrey.y + nearestPrey.vy * predictFrames;
+        // Approach from the side the prey is moving away from
+        const behindX = futureX - nearestPrey.vx * 15;
+        const behindY = futureY - nearestPrey.vy * 15;
+        if (nearestPreyD > r * 6) {
+          // Stalk: move to intercept point
+          tx = behindX; ty = behindY;
+        } else {
+          // Close enough: go direct
+          tx = futureX; ty = futureY;
+        }
         if (nearestPreyD < r * 5 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0 && c.mass > nearestPrey.mass * 2.2) {
           wantSplit = true;
         }
       } else if (nearestThreat && nearestThreatD < senseRange * 0.5) {
         tx = c.x - (nearestThreat.x - c.x); ty = c.y - (nearestThreat.y - c.y);
+      } else if (nearestFood) {
+        tx = nearestFood.x; ty = nearestFood.y;
+      }
+      break;
+
+    case 'bully':
+      // Targets the absolute smallest cell on the map, chases relentlessly
+      // Gives up immediately if target grows bigger than self
+      if (smallestCell) {
+        const sd = dist(c, smallestCell);
+        tx = smallestCell.x; ty = smallestCell.y;
+        // Very eager to split to secure the kill
+        if (sd < r * 5 && c.mass > SPLIT_MIN_MASS && c.splitCooldown <= 0 && c.mass > smallestCell.mass * 1.8) {
+          wantSplit = true;
+        }
+        // But runs if anything bigger is nearby
+        if (nearestThreat && nearestThreatD < senseRange * 0.8) {
+          tx = c.x - (nearestThreat.x - c.x) * 1.5;
+          ty = c.y - (nearestThreat.y - c.y) * 1.5;
+        }
       } else if (nearestFood) {
         tx = nearestFood.x; ty = nearestFood.y;
       }
