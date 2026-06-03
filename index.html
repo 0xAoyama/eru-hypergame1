@@ -3,905 +3,1256 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>自律陣営バトル</title>
+<title>HYPER SURVIVORS</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  background: #0a0a0a;
+  background: #0a0a12;
   display: flex;
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
-  padding: 8px;
-  overflow-x: hidden;
-  font-family: 'Courier New', monospace;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   color: #ddd;
   user-select: none;
-}
-#header {
-  width: min(720px, 100%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-  font-size: 12px;
-}
-#title { color: #aaa; font-weight: bold; font-size: 14px; letter-spacing: 1px; }
-#seed-info { color: #555; cursor: pointer; font-size: 11px; }
-#seed-info:hover { color: #888; }
-#wrap {
-  position: relative;
-  width: min(720px, 100%);
-}
-canvas {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1/1;
-  border: 2px solid #222;
-}
-#result-overlay {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  background: rgba(0,0,0,0.76);
-  gap: 14px;
-  padding: 20px;
-}
-#result-title {
-  font-size: clamp(26px, 8vw, 46px);
-  font-weight: bold;
-  text-shadow: 0 0 30px currentColor;
-  text-align: center;
-}
-#result-prediction {
-  font-size: clamp(13px, 3.5vw, 18px);
-  text-align: center;
-  color: #ccc;
-}
-#result-stats {
-  font-size: clamp(10px, 2.5vw, 13px);
-  color: #777;
-  text-align: center;
-  line-height: 1.6;
-}
-#btn-restart {
-  padding: 10px 32px;
-  font-size: 15px;
-  cursor: pointer;
-  background: #1a1a1a;
-  color: #eee;
-  border: 2px solid #555;
-  border-radius: 6px;
-  font-family: inherit;
-  transition: background 0.15s;
-}
-#btn-restart:hover { background: #2e2e2e; }
-#faction-panel {
-  width: min(720px, 100%);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 5px;
-  margin-top: 6px;
-}
-.faction-card {
-  border: 2px solid #2a2a2a;
-  border-radius: 6px;
-  padding: 6px 7px;
-  cursor: pointer;
-  background: #0d0d0d;
-  transition: background 0.1s, border-color 0.1s;
-}
-.faction-card:hover:not(.dead):not(.locked) { background: #141414; }
-.faction-card.dead { opacity: 0.38; cursor: default; }
-.faction-card.locked { cursor: default; }
-.fc-name { font-size: clamp(10px, 2.5vw, 13px); font-weight: bold; margin-bottom: 1px; }
-.fc-trait { font-size: clamp(9px, 2.1vw, 11px); color: #555; margin-bottom: 4px; }
-.fc-bar-bg { height: 5px; background: #1e1e1e; border-radius: 3px; margin-bottom: 3px; overflow: hidden; }
-.fc-bar-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
-.fc-units { font-size: clamp(9px, 2.1vw, 11px); color: #777; }
-@media (max-width: 400px) {
-  #faction-panel { grid-template-columns: repeat(2, 1fr); }
-}
-#controls {
-  width: min(720px, 100%);
-  margin-top: 7px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-#influence-area { flex: 1; min-width: 130px; }
-#influence-label { font-size: 11px; color: #777; margin-bottom: 3px; }
-#influence-bar-bg {
-  height: 9px;
-  background: #151515;
-  border-radius: 5px;
-  border: 1px solid #2e2e2e;
   overflow: hidden;
 }
-#influence-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #7744ee, #bb77ff);
-  border-radius: 5px;
-  transition: width 0.25s;
+canvas { display: block; }
+#ui-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  pointer-events: none;
+  z-index: 10;
 }
-.action-btn {
-  padding: 7px 12px;
-  font-size: clamp(10px, 2.4vw, 13px);
-  cursor: pointer;
-  background: #141414;
-  color: #bbb;
-  border: 1.5px solid #383838;
-  border-radius: 6px;
-  font-family: inherit;
-  transition: background 0.12s, opacity 0.15s;
+#top-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+}
+#timer { font-size: 22px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; min-width: 60px; }
+#wave-info { font-size: 13px; color: #f0c040; }
+#kill-count { font-size: 13px; color: #aaa; margin-left: auto; }
+#level-info { font-size: 13px; color: #7bf; }
+#xp-bar-bg {
+  position: fixed; top: 44px; left: 0; right: 0;
+  height: 5px; background: rgba(255,255,255,0.06);
+  z-index: 10;
+}
+#xp-bar-fill { height: 100%; background: linear-gradient(90deg, #4af, #7df); width: 0%; transition: width 0.15s; }
+#hp-bar-wrap {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  width: min(360px, 80vw); z-index: 10; pointer-events: none;
+}
+#hp-label { font-size: 11px; color: #aaa; margin-bottom: 3px; text-align: center; }
+#hp-bar-bg {
+  height: 10px; background: rgba(255,255,255,0.08); border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.1); overflow: hidden;
+}
+#hp-bar-fill { height: 100%; background: linear-gradient(90deg, #e44, #f66); border-radius: 5px; width: 100%; transition: width 0.2s; }
+#weapon-icons {
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px; z-index: 10; pointer-events: none;
+}
+.weapon-icon {
+  width: 36px; height: 36px; border-radius: 6px;
+  background: rgba(0,0,0,0.6); border: 1.5px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; backdrop-filter: blur(4px);
+}
+#upgrade-overlay {
+  position: fixed; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  flex-direction: column;
+  gap: 16px;
+}
+#upgrade-title { font-size: 28px; font-weight: 700; color: #ffe066; text-shadow: 0 0 20px rgba(255,224,102,0.4); }
+#upgrade-subtitle { font-size: 14px; color: #aaa; margin-bottom: 8px; }
+#upgrade-choices { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.upgrade-card {
+  width: 200px; padding: 18px 16px; background: rgba(20,20,35,0.9);
+  border: 2px solid rgba(255,255,255,0.12); border-radius: 12px;
+  cursor: pointer; transition: transform 0.15s, border-color 0.15s, background 0.15s;
+  pointer-events: auto; text-align: center;
+}
+.upgrade-card:hover { transform: translateY(-4px); border-color: #ffe066; background: rgba(30,30,50,0.95); }
+.uc-icon { font-size: 36px; margin-bottom: 8px; }
+.uc-name { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+.uc-desc { font-size: 12px; color: #999; line-height: 1.5; }
+.uc-level { font-size: 11px; color: #7bf; margin-top: 6px; }
+#game-over-overlay {
+  position: fixed; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(10px);
+  z-index: 200;
+  flex-direction: column;
+  gap: 16px;
+}
+#go-title { font-size: 42px; font-weight: 700; color: #e44; text-shadow: 0 0 30px rgba(230,60,60,0.5); }
+#go-stats { font-size: 15px; color: #aaa; text-align: center; line-height: 1.8; }
+#go-restart {
+  padding: 12px 36px; font-size: 16px; cursor: pointer;
+  background: linear-gradient(135deg, #2a2a40, #1a1a2e);
+  color: #fff; border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 8px; font-family: inherit;
+  transition: border-color 0.15s, transform 0.15s;
+  pointer-events: auto;
+}
+#go-restart:hover { border-color: #ffe066; transform: translateY(-2px); }
+#start-overlay {
+  position: fixed; inset: 0;
+  display: flex;
+  align-items: center; justify-content: center;
+  background: rgba(6,6,14,0.95);
+  backdrop-filter: blur(12px);
+  z-index: 300;
+  flex-direction: column;
+  gap: 20px;
+}
+#start-title {
+  font-size: clamp(36px, 8vw, 56px);
+  font-weight: 800;
+  background: linear-gradient(135deg, #f66, #fa0, #ff0, #4f4, #4af, #c4f);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
+  letter-spacing: 3px;
+}
+#start-sub { font-size: 15px; color: #777; text-align: center; line-height: 1.7; }
+#start-btn {
+  padding: 14px 48px; font-size: 18px; cursor: pointer;
+  background: linear-gradient(135deg, #e44, #f80);
+  color: #fff; border: none; border-radius: 8px;
+  font-family: inherit; font-weight: 600;
+  transition: transform 0.15s, box-shadow 0.15s;
+  pointer-events: auto;
+}
+#start-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(230,60,60,0.4); }
+#controls-hint {
+  position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: rgba(255,255,255,0.2); z-index: 10; pointer-events: none;
   white-space: nowrap;
-  line-height: 1.3;
 }
-.action-btn:hover:not(:disabled) { background: #242424; }
-.action-btn:disabled { opacity: 0.28; cursor: default; }
-.action-btn .cost { font-size: 9px; color: #666; display: block; }
-#event-log {
-  width: min(720px, 100%);
-  margin-top: 7px;
-  background: #0d0d0d;
-  border: 1px solid #1e1e1e;
-  border-radius: 6px;
-  padding: 7px 9px;
-  height: 86px;
-  overflow-y: auto;
-  font-size: 11px;
-  line-height: 1.55;
+@media (max-width: 640px) {
+  .upgrade-card { width: 160px; padding: 14px 12px; }
+  .uc-icon { font-size: 28px; }
 }
-.log-entry { color: #555; padding: 0; }
-#history-panel {
-  width: min(720px, 100%);
-  margin-top: 7px;
-  background: #0d0d0d;
-  border: 1px solid #1e1e1e;
-  border-radius: 6px;
-  padding: 6px 9px 7px;
-}
-#history-label {
-  font-size: 10px;
-  color: #444;
-  margin-bottom: 4px;
-  letter-spacing: 1px;
-}
-#history-canvas {
-  display: block;
-  width: 100%;
-  height: 56px;
-  image-rendering: pixelated;
-}
-#bottom-info { margin-top: 4px; font-size: 10px; color: #2e2e2e; }
 </style>
 </head>
 <body>
 
-<div id="header">
-  <div id="title">観戦介入型 自律陣営バトル</div>
-  <div id="seed-info" title="クリックでシード変更">SEED: <span id="seed-val">----</span></div>
-</div>
+<canvas id="c"></canvas>
 
-<div id="wrap">
-  <canvas id="c"></canvas>
-  <div id="result-overlay">
-    <div id="result-title"></div>
-    <div id="result-prediction"></div>
-    <div id="result-stats"></div>
-    <button id="btn-restart">再スタート</button>
+<div id="ui-overlay">
+  <div id="top-bar">
+    <div id="timer">0:00</div>
+    <div id="wave-info">WAVE 1</div>
+    <div id="level-info">Lv.1</div>
+    <div id="kill-count">KILLS: 0</div>
   </div>
 </div>
+<div id="xp-bar-bg"><div id="xp-bar-fill"></div></div>
 
-<div id="faction-panel"></div>
-
-<div id="controls">
-  <div id="influence-area">
-    <div id="influence-label">INFLUENCE: <span id="inf-val">100</span>/100</div>
-    <div id="influence-bar-bg"><div id="influence-bar-fill" style="width:100%"></div></div>
-  </div>
-  <button class="action-btn" id="btn-cheer" disabled>応援<span class="cost">-20 INF</span></button>
-  <button class="action-btn" id="btn-supply" disabled>補給<span class="cost">-30 INF</span></button>
-  <button class="action-btn" id="btn-storm" disabled>嵐<span class="cost">-50 INF</span></button>
+<div id="hp-bar-wrap">
+  <div id="hp-label">HP</div>
+  <div id="hp-bar-bg"><div id="hp-bar-fill"></div></div>
 </div>
 
-<div id="event-log"></div>
+<div id="weapon-icons"></div>
+<div id="controls-hint">WASD / Arrow Keys to move (or watch AI play)</div>
 
-<div id="history-panel">
-  <div id="history-label">POWER HISTORY</div>
-  <canvas id="history-canvas" width="700" height="56"></canvas>
+<div id="upgrade-overlay">
+  <div id="upgrade-title">LEVEL UP!</div>
+  <div id="upgrade-subtitle">Choose an upgrade</div>
+  <div id="upgrade-choices"></div>
 </div>
 
-<div id="bottom-info">Units:<span id="ui-units">0</span> Parts:<span id="ui-parts">0</span> F:<span id="ui-frame">0</span></div>
+<div id="game-over-overlay">
+  <div id="go-title">GAME OVER</div>
+  <div id="go-stats"></div>
+  <button id="go-restart">RETRY</button>
+</div>
+
+<div id="start-overlay">
+  <div id="start-title">HYPER SURVIVORS</div>
+  <div id="start-sub">Auto-battle roguelike<br>WASD to move, or watch the AI fight<br>Survive as long as you can</div>
+  <button id="start-btn">START</button>
+</div>
 
 <script>
 'use strict';
 
-// ── Seeded RNG (mulberry32) ────────────────────────────────────
-function mkRng(seed) {
-  return function() {
-    seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function getSeed() {
-  const p = new URLSearchParams(location.search).get('seed');
-  return p ? (parseInt(p, 10) || 1) : (Math.floor(Math.random() * 99999) + 1);
-}
-
-let currentSeed = getSeed();
-let rng = mkRng(currentSeed);
-let visRng = mkRng((currentSeed ^ 0x9E3779B9) | 0);
-document.getElementById('seed-val').textContent = currentSeed;
-history.replaceState(null, '', '?seed=' + currentSeed);
-
-document.getElementById('seed-info').addEventListener('click', () => {
-  const s = prompt('シードを入力（空白でランダム）:', currentSeed);
-  if (s === null) return;
-  const n = s.trim() === '' ? (Math.floor(Math.random() * 99999) + 1) : (parseInt(s, 10) || 1);
-  location.href = '?seed=' + n;
-});
-
-// ── Canvas ────────────────────────────────────────────────────
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const W = 720, H = 720;
-canvas.width = W;
-canvas.height = H;
+let W, H, camX = 0, camY = 0;
+const WORLD = 3000;
 
-const hCanvas = document.getElementById('history-canvas');
-const hCtx = hCanvas.getContext('2d');
-const HW = 700, HH = 56;
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+}
+resize();
+window.addEventListener('resize', resize);
 
-// ── Faction definitions ───────────────────────────────────────
-// Traits: 赤=攻撃型, 青=防御型, 緑=再生型, 黄=高速型
-const FDEF = [
-  {
-    id: 0, name: '赤軍', color: '#e74c3c', glow: '#ff5555',
-    tx: 90, ty: 90,
-    trait: '攻撃型', traitDesc: '攻撃↑ 耐久↓',
-    spawnInterval: 88, speedMult: 1.05, damageMult: 1.55, hpMult: 0.75, unitHpMult: 0.75,
-    regenRate: 0
+// ── Input ────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.key] = true; keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.code] = false; });
+
+// Mobile touch
+let touchDir = { x: 0, y: 0 };
+let touching = false;
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  touching = true;
+  const t = e.touches[0];
+  touchDir.sx = t.clientX; touchDir.sy = t.clientY;
+  touchDir.x = 0; touchDir.y = 0;
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchDir.x = t.clientX - touchDir.sx;
+  touchDir.y = t.clientY - touchDir.sy;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { touching = false; touchDir.x = 0; touchDir.y = 0; });
+
+// ── Game State ───────────────────────────────────────────────
+let player, enemies, projectiles, particles, xpGems, damageTexts;
+let frame, gameTime, kills, gameOver, paused, started;
+let waveNum, waveTimer, bossAlive;
+let shakeF = 0, shakeMag = 0;
+let pendingLevelUps = 0;
+let playerControlled = false;
+
+const PLAYER_SPEED = 3.2;
+const PLAYER_MAX_HP = 100;
+const XP_ATTRACT_RANGE = 80;
+const XP_COLLECT_RANGE = 20;
+
+// ── Weapon Definitions ──────────────────────────────────────
+const WEAPONS = {
+  orb: {
+    name: 'Orbit',
+    icon: '🔮',
+    desc: 'Spinning orbs deal contact damage',
+    maxLvl: 8,
+    baseDmg: 12,
+    baseCount: 2,
+    baseSpeed: 0.03,
+    baseRadius: 60,
   },
-  {
-    id: 1, name: '青軍', color: '#3498db', glow: '#55aaff',
-    tx: W - 90, ty: 90,
-    trait: '防御型', traitDesc: '耐久↑ 速度↓',
-    spawnInterval: 108, speedMult: 0.76, damageMult: 0.85, hpMult: 1.55, unitHpMult: 1.55,
-    regenRate: 0
+  bolt: {
+    name: 'Magic Bolt',
+    icon: '✨',
+    desc: 'Auto-fires projectiles at nearest enemy',
+    maxLvl: 8,
+    baseDmg: 15,
+    baseInterval: 50,
+    baseSpeed: 7,
+    basePierce: 1,
   },
-  {
-    id: 2, name: '緑軍', color: '#2ecc71', glow: '#00ff88',
-    tx: 90, ty: H - 90,
-    trait: '再生型', traitDesc: 'HP再生 均衡型',
-    spawnInterval: 82, speedMult: 1.0, damageMult: 1.0, hpMult: 1.0, unitHpMult: 1.0,
-    regenRate: 0.12   // HP regen per frame
+  lightning: {
+    name: 'Lightning',
+    icon: '⚡',
+    desc: 'Strikes a random nearby enemy',
+    maxLvl: 8,
+    baseDmg: 25,
+    baseInterval: 90,
+    baseChain: 1,
+    baseRange: 200,
   },
-  {
-    id: 3, name: '黄軍', color: '#f1c40f', glow: '#ffe066',
-    tx: W - 90, ty: H - 90,
-    trait: '高速型', traitDesc: '速度↑ 攻撃↓',
-    spawnInterval: 55, speedMult: 1.7, damageMult: 0.72, hpMult: 0.88, unitHpMult: 0.88,
-    regenRate: 0
+  aura: {
+    name: 'Holy Aura',
+    icon: '🌟',
+    desc: 'Damages all enemies in range',
+    maxLvl: 8,
+    baseDmg: 6,
+    baseInterval: 30,
+    baseRange: 70,
   },
-];
+  wave: {
+    name: 'Shockwave',
+    icon: '💥',
+    desc: 'Periodic explosion around player',
+    maxLvl: 8,
+    baseDmg: 30,
+    baseInterval: 150,
+    baseRange: 110,
+  },
+};
 
-const BASE_HP      = 800;
-const BASE_R       = 38;
-const UNIT_R       = 6;
-const MAX_UNITS    = 14;
-const MAX_PARTS    = 480;
-const TRAIL_LEN    = 10;
-const WANDER_STR   = 0.04;
-const COMBAT_DPS   = 0.55;
-const ATTACK_RANGE = 13;
-const UNIT_SPEED   = 1.6;
-const UNIT_DMG     = 10;
-const INF_MAX      = 100;
-const INF_REGEN    = 108; // frames per +1
+const PASSIVES = {
+  maxhp: { name: 'Vitality', icon: '❤️', desc: '+20% Max HP', maxLvl: 5 },
+  speed: { name: 'Swiftness', icon: '👟', desc: '+12% Move Speed', maxLvl: 5 },
+  damage: { name: 'Might', icon: '⚔️', desc: '+15% All Damage', maxLvl: 5 },
+  armor: { name: 'Armor', icon: '🛡️', desc: '-10% Damage Taken', maxLvl: 5 },
+  regen: { name: 'Recovery', icon: '💚', desc: '+0.15 HP/sec', maxLvl: 5 },
+  attract: { name: 'Magnet', icon: '🧲', desc: '+30% XP Attract Range', maxLvl: 3 },
+};
 
-// History sampling: record HP% every N frames
-const HIST_SAMPLE  = 20;
-const HIST_MAX     = 350;
+let playerWeapons = {}; // { orb: { level: 1, timer: 0 }, ... }
+let playerPassives = {}; // { maxhp: 1, ... }
 
-// ── State ─────────────────────────────────────────────────────
-let bases, units, particles, floats, frame, gameOver;
-let shakeF = 0;
-let influence = INF_MAX;
-let infTimer  = 0;
-let playerFaction = -1;
-let logLines = [];
-let powerHistory = []; // [{r,g,b,y}] HP% per faction per sample
-let interventionCount = 0;
-let predictionLocked = false;
-
-function rnd(a, b) { return a + rng() * (b - a); }
-function vrnd(a, b) { return a + visRng() * (b - a); }
-function dst(ax, ay, bx, by) { const dx = bx-ax, dy = by-ay; return Math.sqrt(dx*dx+dy*dy); }
-
-// ── Floating text ─────────────────────────────────────────────
-function addFloat(x, y, text, color) {
-  floats.push({ x, y, text, color, life: 1.0, vy: -1.1 });
+// ── Enemy Definitions ────────────────────────────────────────
+function enemyDef(type, wave) {
+  const s = 1 + wave * 0.08;
+  const defs = {
+    basic: { hp: 15*s, speed: 1.5, dmg: 8, r: 10, color: '#c44', xp: 1, score: 10 },
+    fast: { hp: 8*s, speed: 3.2, dmg: 6, r: 8, color: '#e80', xp: 1, score: 15 },
+    tank: { hp: 60*s, speed: 0.8, dmg: 15, r: 16, color: '#84c', xp: 3, score: 25 },
+    swarm: { hp: 5*s, speed: 2.2, dmg: 4, r: 6, color: '#8c4', xp: 1, score: 5 },
+    boss: { hp: 300*s, speed: 1.0, dmg: 25, r: 30, color: '#f4a', xp: 30, score: 200 },
+  };
+  return { ...defs[type], type };
 }
 
-// ── Event log ─────────────────────────────────────────────────
-function addLog(msg, color) {
-  logLines.unshift({ msg, color: color || '#666' });
-  if (logLines.length > 40) logLines.pop();
-  const el = document.getElementById('event-log');
-  el.innerHTML = logLines.map(e =>
-    `<div class="log-entry" style="color:${e.color}">${e.msg}</div>`
+// ── Helper ───────────────────────────────────────────────────
+function dist(a, b) { const dx = b.x-a.x, dy = b.y-a.y; return Math.sqrt(dx*dx+dy*dy); }
+function angle(a, b) { return Math.atan2(b.y-a.y, b.x-a.x); }
+function lerp(a, b, t) { return a + (b-a) * t; }
+function rnd(lo, hi) { return lo + Math.random() * (hi - lo); }
+function rndInt(lo, hi) { return Math.floor(rnd(lo, hi+1)); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function getPlayerStats() {
+  const dmgMult = 1 + (playerPassives.damage || 0) * 0.15;
+  const spdMult = 1 + (playerPassives.speed || 0) * 0.12;
+  const armorMult = 1 - (playerPassives.armor || 0) * 0.10;
+  const maxHp = PLAYER_MAX_HP * (1 + (playerPassives.maxhp || 0) * 0.20);
+  const regen = (playerPassives.regen || 0) * 0.15;
+  const attractRange = XP_ATTRACT_RANGE * (1 + (playerPassives.attract || 0) * 0.30);
+  return { dmgMult, spdMult, armorMult, maxHp, regen, attractRange };
+}
+
+// ── Particles / VFX ──────────────────────────────────────────
+function burst(x, y, color, n, spd, size) {
+  for (let i = 0; i < n && particles.length < 1500; i++) {
+    const a = rnd(0, Math.PI*2), s = rnd(0.5, spd);
+    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+      life: 1, decay: rnd(0.015, 0.045), color, r: rnd(1.5, size || 4) });
+  }
+}
+
+function addDmgText(x, y, text, color) {
+  damageTexts.push({ x, y, text, color, life: 1, vy: -1.5 });
+}
+
+function triggerShake(frames, mag) { shakeF = Math.max(shakeF, frames); shakeMag = Math.max(shakeMag, mag || 5); }
+
+// ── XP & Leveling ────────────────────────────────────────────
+function getXpToLevel(level) { return Math.floor(5 + level * 4 + level * level * 0.5); }
+
+function addXp(amount) {
+  player.xp += amount;
+  while (player.xp >= player.xpNext) {
+    player.xp -= player.xpNext;
+    player.level++;
+    player.xpNext = getXpToLevel(player.level);
+    pendingLevelUps++;
+  }
+  if (pendingLevelUps > 0 && !paused) showUpgradeMenu();
+}
+
+function showUpgradeMenu() {
+  paused = true;
+  pendingLevelUps--;
+  const choices = generateUpgradeChoices(3);
+  const el = document.getElementById('upgrade-choices');
+  el.innerHTML = '';
+  choices.forEach((c, i) => {
+    const card = document.createElement('div');
+    card.className = 'upgrade-card';
+    const currentLvl = c.isWeapon ? (playerWeapons[c.key]?.level || 0) : (playerPassives[c.key] || 0);
+    card.innerHTML = `
+      <div class="uc-icon">${c.icon}</div>
+      <div class="uc-name">${c.name}</div>
+      <div class="uc-desc">${c.desc}</div>
+      <div class="uc-level">Lv.${currentLvl} → Lv.${currentLvl + 1}</div>
+    `;
+    card.addEventListener('click', () => applyUpgrade(c));
+    el.appendChild(card);
+  });
+  document.getElementById('upgrade-overlay').style.display = 'flex';
+}
+
+function generateUpgradeChoices(n) {
+  const pool = [];
+  // Weapons
+  for (const [key, w] of Object.entries(WEAPONS)) {
+    const lvl = playerWeapons[key]?.level || 0;
+    if (lvl < w.maxLvl) {
+      pool.push({ key, name: w.name, icon: w.icon, desc: w.desc, isWeapon: true });
+    }
+  }
+  // Passives
+  for (const [key, p] of Object.entries(PASSIVES)) {
+    const lvl = playerPassives[key] || 0;
+    if (lvl < p.maxLvl) {
+      pool.push({ key, name: p.name, icon: p.icon, desc: p.desc, isWeapon: false });
+    }
+  }
+  // Shuffle and pick
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, n);
+}
+
+function applyUpgrade(choice) {
+  if (choice.isWeapon) {
+    if (!playerWeapons[choice.key]) {
+      playerWeapons[choice.key] = { level: 1, timer: 0, angle: 0 };
+    } else {
+      playerWeapons[choice.key].level++;
+    }
+  } else {
+    playerPassives[choice.key] = (playerPassives[choice.key] || 0) + 1;
+    if (choice.key === 'maxhp') {
+      const stats = getPlayerStats();
+      player.hp = Math.min(player.hp + 20, stats.maxHp);
+    }
+  }
+  document.getElementById('upgrade-overlay').style.display = 'none';
+  updateWeaponIcons();
+
+  if (pendingLevelUps > 0) {
+    setTimeout(() => showUpgradeMenu(), 200);
+  } else {
+    paused = false;
+  }
+}
+
+function updateWeaponIcons() {
+  const el = document.getElementById('weapon-icons');
+  el.innerHTML = Object.entries(playerWeapons).map(([k, w]) =>
+    `<div class="weapon-icon" title="${WEAPONS[k].name} Lv.${w.level}">${WEAPONS[k].icon}</div>`
   ).join('');
 }
 
-function triggerShake(f) { shakeF = Math.max(shakeF, f); }
+// ── Spawn Enemies ────────────────────────────────────────────
+function spawnWave() {
+  waveNum++;
+  waveTimer = 0;
 
-// ── Init ──────────────────────────────────────────────────────
+  const count = Math.min(8 + waveNum * 3, 60);
+  const types = ['basic'];
+  if (waveNum >= 2) types.push('fast');
+  if (waveNum >= 3) types.push('swarm', 'swarm');
+  if (waveNum >= 4) types.push('tank');
+  if (waveNum >= 5) types.push('fast', 'swarm');
+
+  for (let i = 0; i < count; i++) {
+    const a = rnd(0, Math.PI * 2);
+    const d = rnd(500, 700);
+    const type = types[Math.floor(Math.random() * types.length)];
+    const def = enemyDef(type, waveNum);
+    enemies.push({
+      ...def,
+      x: player.x + Math.cos(a) * d,
+      y: player.y + Math.sin(a) * d,
+      maxHp: def.hp,
+      flashTimer: 0,
+      hitCooldown: 0,
+    });
+  }
+
+  // Boss every 5 waves
+  if (waveNum % 5 === 0) {
+    const a = rnd(0, Math.PI * 2);
+    const def = enemyDef('boss', waveNum);
+    enemies.push({
+      ...def,
+      x: player.x + Math.cos(a) * 550,
+      y: player.y + Math.sin(a) * 550,
+      maxHp: def.hp,
+      flashTimer: 0,
+      hitCooldown: 0,
+    });
+    bossAlive = true;
+  }
+}
+
+// Continuous ambient spawns between waves
+function ambientSpawn() {
+  if (enemies.length > 150) return;
+  const maxAmbient = Math.min(3 + Math.floor(waveNum * 0.5), 8);
+  for (let i = 0; i < maxAmbient; i++) {
+    const a = rnd(0, Math.PI * 2);
+    const d = rnd(500, 650);
+    const types = ['basic', 'swarm'];
+    if (waveNum >= 3) types.push('fast');
+    const type = types[Math.floor(Math.random() * types.length)];
+    const def = enemyDef(type, waveNum);
+    enemies.push({
+      ...def,
+      x: player.x + Math.cos(a) * d,
+      y: player.y + Math.sin(a) * d,
+      maxHp: def.hp,
+      flashTimer: 0,
+      hitCooldown: 0,
+    });
+  }
+}
+
+// ── Weapon Logic ─────────────────────────────────────────────
+function updateWeapons() {
+  const stats = getPlayerStats();
+
+  // Orb
+  if (playerWeapons.orb) {
+    const w = playerWeapons.orb;
+    const count = w.level + WEAPONS.orb.baseCount - 1;
+    const dmg = WEAPONS.orb.baseDmg * (1 + w.level * 0.3) * stats.dmgMult;
+    const radius = WEAPONS.orb.baseRadius + w.level * 8;
+    const speed = WEAPONS.orb.baseSpeed + w.level * 0.003;
+    w.angle += speed;
+
+    for (let i = 0; i < count; i++) {
+      const a = w.angle + (Math.PI * 2 / count) * i;
+      const ox = player.x + Math.cos(a) * radius;
+      const oy = player.y + Math.sin(a) * radius;
+
+      enemies.forEach(e => {
+        if (dist({ x: ox, y: oy }, e) < e.r + 10) {
+          if (e.hitCooldown <= 0) {
+            damageEnemy(e, dmg, ox, oy);
+            e.hitCooldown = 15;
+          }
+        }
+      });
+    }
+  }
+
+  // Bolt
+  if (playerWeapons.bolt) {
+    const w = playerWeapons.bolt;
+    const interval = Math.max(15, WEAPONS.bolt.baseInterval - w.level * 5);
+    w.timer++;
+    if (w.timer >= interval) {
+      w.timer = 0;
+      const targets = enemies.filter(e => dist(player, e) < 350).sort((a, b) => dist(player, a) - dist(player, b));
+      const shotCount = Math.min(1 + Math.floor(w.level / 3), 3);
+      for (let i = 0; i < Math.min(shotCount, targets.length); i++) {
+        const t = targets[i];
+        const a = angle(player, t);
+        const dmg = WEAPONS.bolt.baseDmg * (1 + w.level * 0.25) * stats.dmgMult;
+        const pierce = WEAPONS.bolt.basePierce + Math.floor(w.level / 2);
+        projectiles.push({
+          x: player.x, y: player.y,
+          vx: Math.cos(a) * WEAPONS.bolt.baseSpeed,
+          vy: Math.sin(a) * WEAPONS.bolt.baseSpeed,
+          dmg, pierce, r: 4 + w.level * 0.5,
+          color: '#4af', life: 120,
+          hit: new Set(),
+        });
+      }
+    }
+  }
+
+  // Lightning
+  if (playerWeapons.lightning) {
+    const w = playerWeapons.lightning;
+    const interval = Math.max(30, WEAPONS.lightning.baseInterval - w.level * 7);
+    w.timer++;
+    if (w.timer >= interval) {
+      w.timer = 0;
+      const range = WEAPONS.lightning.baseRange + w.level * 25;
+      const chains = WEAPONS.lightning.baseChain + Math.floor(w.level / 2);
+      const dmg = WEAPONS.lightning.baseDmg * (1 + w.level * 0.3) * stats.dmgMult;
+
+      let targets = enemies.filter(e => dist(player, e) < range);
+      if (targets.length > 0) {
+        let current = targets[Math.floor(Math.random() * targets.length)];
+        const struck = new Set();
+        let prev = { x: player.x, y: player.y };
+
+        for (let c = 0; c < chains && current; c++) {
+          struck.add(current);
+          damageEnemy(current, dmg * (c === 0 ? 1 : 0.7), current.x, current.y);
+
+          // Lightning visual
+          drawLightningBolt(prev.x, prev.y, current.x, current.y, '#aaf');
+          burst(current.x, current.y, '#88f', 8, 3, 3);
+          triggerShake(4, 2);
+
+          prev = current;
+          targets = enemies.filter(e => !struck.has(e) && dist(current, e) < range * 0.7);
+          current = targets.length > 0 ? targets[Math.floor(Math.random() * targets.length)] : null;
+        }
+      }
+    }
+  }
+
+  // Aura
+  if (playerWeapons.aura) {
+    const w = playerWeapons.aura;
+    const interval = Math.max(10, WEAPONS.aura.baseInterval - w.level * 2);
+    w.timer++;
+    if (w.timer >= interval) {
+      w.timer = 0;
+      const range = WEAPONS.aura.baseRange + w.level * 10;
+      const dmg = WEAPONS.aura.baseDmg * (1 + w.level * 0.25) * stats.dmgMult;
+      enemies.forEach(e => {
+        if (dist(player, e) < range + e.r) {
+          damageEnemy(e, dmg, e.x, e.y);
+        }
+      });
+    }
+  }
+
+  // Shockwave
+  if (playerWeapons.wave) {
+    const w = playerWeapons.wave;
+    const interval = Math.max(60, WEAPONS.wave.baseInterval - w.level * 10);
+    w.timer++;
+    if (w.timer >= interval) {
+      w.timer = 0;
+      const range = WEAPONS.wave.baseRange + w.level * 15;
+      const dmg = WEAPONS.wave.baseDmg * (1 + w.level * 0.35) * stats.dmgMult;
+      enemies.forEach(e => {
+        if (dist(player, e) < range + e.r) {
+          damageEnemy(e, dmg, e.x, e.y);
+          const a = angle(player, e);
+          e.x += Math.cos(a) * 30;
+          e.y += Math.sin(a) * 30;
+        }
+      });
+      // Visual
+      burst(player.x, player.y, '#fa4', 30, 6, 5);
+      triggerShake(8, 4);
+    }
+  }
+}
+
+let lightningBolts = [];
+function drawLightningBolt(x1, y1, x2, y2, color) {
+  lightningBolts.push({ x1, y1, x2, y2, color, life: 12 });
+}
+
+function damageEnemy(e, dmg, x, y) {
+  e.hp -= dmg;
+  e.flashTimer = 6;
+  addDmgText(x + rnd(-10, 10), y - e.r, Math.ceil(dmg).toString(), '#fff');
+  if (e.hp <= 0) {
+    kills++;
+    burst(e.x, e.y, e.color, 12, 4, 4);
+    // Drop XP gems
+    const gemCount = e.type === 'boss' ? 10 : (e.xp >= 3 ? 3 : 1);
+    const xpEach = e.xp / gemCount;
+    for (let i = 0; i < gemCount; i++) {
+      xpGems.push({
+        x: e.x + rnd(-15, 15), y: e.y + rnd(-15, 15),
+        xp: xpEach,
+        r: xpEach >= 5 ? 6 : (xpEach >= 2 ? 4.5 : 3),
+        color: xpEach >= 5 ? '#f4a' : (xpEach >= 2 ? '#4af' : '#4f4'),
+        life: 600,
+      });
+    }
+    if (e.type === 'boss') {
+      triggerShake(20, 8);
+      burst(e.x, e.y, '#fff', 40, 8, 6);
+      burst(e.x, e.y, e.color, 30, 6, 5);
+      bossAlive = false;
+    }
+  }
+}
+
+// ── AI Movement ──────────────────────────────────────────────
+function aiMove() {
+  // Simple AI: move toward nearest XP if safe, otherwise dodge enemies
+  let dx = 0, dy = 0;
+
+  // Threat avoidance
+  let threatX = 0, threatY = 0, threatCount = 0;
+  enemies.forEach(e => {
+    const d = dist(player, e);
+    if (d < 120) {
+      const a = angle(e, player);
+      const force = (120 - d) / 120;
+      threatX += Math.cos(a) * force;
+      threatY += Math.sin(a) * force;
+      threatCount++;
+    }
+  });
+
+  if (threatCount > 2) {
+    // Flee from danger
+    const mag = Math.sqrt(threatX*threatX + threatY*threatY) || 1;
+    dx = threatX / mag;
+    dy = threatY / mag;
+  } else {
+    // Move toward nearest XP gem
+    let nearest = null, nearDist = Infinity;
+    xpGems.forEach(g => {
+      const d = dist(player, g);
+      if (d < nearDist) { nearDist = d; nearest = g; }
+    });
+
+    if (nearest && nearDist > XP_COLLECT_RANGE) {
+      const a = angle(player, nearest);
+      dx = Math.cos(a);
+      dy = Math.sin(a);
+    } else if (enemies.length > 0) {
+      // Kite: move perpendicular to nearest enemy cluster
+      let ne = null, ned = Infinity;
+      enemies.forEach(e => { const d = dist(player, e); if (d < ned) { ned = d; ne = e; }});
+      if (ne) {
+        const a = angle(ne, player);
+        // Slightly toward enemies to stay in combat range
+        if (ned > 200) {
+          dx = -Math.cos(a); dy = -Math.sin(a);
+        } else {
+          // Strafe perpendicular
+          dx = Math.cos(a + Math.PI * 0.4);
+          dy = Math.sin(a + Math.PI * 0.4);
+        }
+      }
+    }
+
+    // Add threat avoidance
+    if (threatCount > 0) {
+      const mag = Math.sqrt(threatX*threatX + threatY*threatY) || 1;
+      dx += (threatX / mag) * 0.7;
+      dy += (threatY / mag) * 0.7;
+    }
+  }
+
+  // Boundary avoidance
+  const margin = 100;
+  if (player.x < -WORLD/2 + margin) dx += 0.5;
+  if (player.x > WORLD/2 - margin) dx -= 0.5;
+  if (player.y < -WORLD/2 + margin) dy += 0.5;
+  if (player.y > WORLD/2 - margin) dy -= 0.5;
+
+  const mag = Math.sqrt(dx*dx + dy*dy) || 1;
+  return { x: dx/mag, y: dy/mag };
+}
+
+// ── Init ─────────────────────────────────────────────────────
 function init() {
-  rng = mkRng(currentSeed);
-  visRng = mkRng((currentSeed ^ 0x9E3779B9) | 0);
-  bases = FDEF.map(f => ({
-    ...f,
-    hp: BASE_HP * f.hpMult,
-    maxHp: BASE_HP * f.hpMult,
-    alive: true,
-    spawnTimer: Math.floor(rng() * f.spawnInterval),
-    pulseT: rng() * Math.PI * 2,
-    killCount: 0,
-  }));
-  units = []; particles = []; floats = [];
-  frame = 0; gameOver = false;
-  influence = INF_MAX; infTimer = 0;
-  logLines = []; shakeF = 0;
-  powerHistory = [{ r: 1, g: 1, b: 1, y: 1 }];
-  interventionCount = 0;
+  player = {
+    x: 0, y: 0, hp: PLAYER_MAX_HP, level: 1,
+    xp: 0, xpNext: getXpToLevel(1),
+    invincible: 0,
+  };
+  enemies = []; projectiles = []; particles = []; xpGems = []; damageTexts = [];
+  lightningBolts = [];
+  frame = 0; gameTime = 0; kills = 0; gameOver = false; paused = false;
+  waveNum = 0; waveTimer = 0; bossAlive = false;
+  shakeF = 0; shakeMag = 0; pendingLevelUps = 0;
+  playerControlled = false;
 
-  document.getElementById('result-overlay').style.display = 'none';
-  updateInfUI();
-  renderPanel();
-  updateBtns();
-  addLog('バトル開始！ 陣営を選んで介入しよう', '#888');
-  drawHistory();
+  playerWeapons = {};
+  playerPassives = {};
+  // Start with orb
+  playerWeapons.orb = { level: 1, timer: 0, angle: 0 };
+
+  updateWeaponIcons();
+  document.getElementById('game-over-overlay').style.display = 'none';
+  document.getElementById('upgrade-overlay').style.display = 'none';
+
+  spawnWave();
 }
 
-// ── Spawn ─────────────────────────────────────────────────────
-function spawnUnit(base) {
-  const a = rnd(0, Math.PI * 2);
-  const spd = rnd(0.85, 1.15) * UNIT_SPEED * base.speedMult;
-  units.push({
-    faction: base.id,
-    x: base.tx + Math.cos(a) * (BASE_R + 12),
-    y: base.ty + Math.sin(a) * (BASE_R + 12),
-    vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
-    hp: 40 * base.unitHpMult, maxHp: 40 * base.unitHpMult,
-    trail: [], fighting: false,
-    wanderA: rnd(0, Math.PI * 2),
-  });
-}
-
-// ── Particles ─────────────────────────────────────────────────
-function burst(x, y, color, n, spd) {
-  for (let i = 0; i < n && particles.length < MAX_PARTS; i++) {
-    const a = vrnd(0, Math.PI * 2), s = vrnd(0.4, spd);
-    particles.push({
-      x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
-      life: 1, decay: vrnd(0.018, 0.05), color, r: vrnd(1.5, 4),
-    });
-  }
-}
-
-// ── Comeback / anti-snowball ──────────────────────────────────
-// Returns a multiplier bonus for a faction based on how far behind they are
-function comebackMult(base) {
-  if (!base.alive) return 1;
-  const ratio = base.hp / base.maxHp;
-  // Bonus kicks in below 40% HP, maxes at 1.35x at near-death
-  if (ratio >= 0.4) return 1;
-  return 1 + (0.4 - ratio) / 0.4 * 0.35;
-}
-
-// ── Player actions ────────────────────────────────────────────
-function doCheer() {
-  if (playerFaction < 0 || influence < 20 || gameOver || !bases[playerFaction].alive) return;
-  influence -= 20;
-  interventionCount++;
-  const f = FDEF[playerFaction];
-  let cnt = 0;
-  units.filter(u => u.faction === playerFaction).forEach(u => {
-    const spd = Math.sqrt(u.vx*u.vx + u.vy*u.vy) || 1;
-    u.vx = (u.vx/spd) * spd * 1.38;
-    u.vy = (u.vy/spd) * spd * 1.38;
-    u.hp = Math.min(u.maxHp, u.hp + 12);
-    burst(u.x, u.y, f.color, 4, 2.5);
-    cnt++;
-  });
-  addFloat(bases[playerFaction].tx, bases[playerFaction].ty - 55, '応援！', f.color);
-  addLog(`★ ${f.name}を応援！ 兵士${cnt}体の士気上昇`, f.color);
-  updateInfUI(); updateBtns();
-}
-
-function doSupply() {
-  if (playerFaction < 0 || influence < 30 || gameOver) return;
-  if (!bases[playerFaction].alive) return;
-  influence -= 30;
-  interventionCount++;
-  const f = FDEF[playerFaction];
-  const b = bases[playerFaction];
-  for (let i = 0; i < 3; i++) spawnUnit(b);
-  burst(b.tx, b.ty, f.color, 20, 4.5);
-  addFloat(b.tx, b.ty - 55, '補給！', f.color);
-  addLog(`★ ${f.name}に補給！ 増援×3投入`, f.color);
-  updateInfUI(); updateBtns();
-}
-
-function doStorm() {
-  if (playerFaction < 0 || influence < 50 || gameOver) return;
-  if (!bases[playerFaction].alive) return;
-  influence -= 50;
-  interventionCount++;
-  const f = FDEF[playerFaction];
-  bases.forEach(b => {
-    if (b.id === playerFaction || !b.alive) return;
-    b.hp -= 95;
-    burst(b.tx, b.ty, '#99aaff', 24, 6);
-    addFloat(b.tx, b.ty, '-95', '#99aaff');
-  });
-  units.forEach(u => {
-    if (u.faction === playerFaction) return;
-    u.hp -= 20;
-    if (visRng() < 0.4) burst(u.x, u.y, '#8899ff', 3, 2);
-  });
-  triggerShake(26);
-  addFloat(W/2, H/2 - 40, '⚡ 嵐 ⚡', '#99aaff');
-
-  addLog(`★ 嵐を解き放つ！ 全敵陣営に大ダメージ`, '#99aaff');
-  updateInfUI(); updateBtns();
-}
-
-document.getElementById('btn-cheer').addEventListener('click', doCheer);
-document.getElementById('btn-supply').addEventListener('click', doSupply);
-document.getElementById('btn-storm').addEventListener('click', doStorm);
-
-function updateInfUI() {
-  document.getElementById('inf-val').textContent = Math.floor(influence);
-  document.getElementById('influence-bar-fill').style.width = (influence / INF_MAX * 100) + '%';
-}
-
-function updateBtns() {
-  const ok = playerFaction >= 0 && !gameOver && bases[playerFaction]?.alive;
-  document.getElementById('btn-cheer').disabled  = !ok || influence < 20;
-  document.getElementById('btn-supply').disabled = !ok || influence < 30;
-  document.getElementById('btn-storm').disabled  = !ok || influence < 50;
-}
-
-// ── Faction panel ─────────────────────────────────────────────
-function renderPanel() {
-  const panel = document.getElementById('faction-panel');
-  panel.innerHTML = FDEF.map(f => {
-    const b = bases ? bases[f.id] : null;
-    const pct = b ? Math.max(0, b.hp / b.maxHp * 100) : 100;
-    const alive = b ? b.alive : true;
-    const cnt = units ? units.filter(u => u.faction === f.id).length : 0;
-    const sel = playerFaction === f.id;
-    const cb = b && alive ? comebackMult(b) : 1;
-    const cbTxt = cb > 1.05 ? ` ⚡${(cb*100-100).toFixed(0)}%` : '';
-    return `<div class="faction-card${sel?' selected':''}${!alive?' dead':''}"
-      style="${sel?`border-color:${f.color};background:${f.color}14`:`border-color:${alive?'#2a2a2a':'#181818'}`}"
-      onclick="selectFaction(${f.id})">
-      <div class="fc-name" style="color:${f.color}">${f.name}${sel?' ★':''}</div>
-      <div class="fc-trait">[${f.trait}] ${f.traitDesc}</div>
-      <div class="fc-bar-bg">
-        <div class="fc-bar-fill" style="width:${pct.toFixed(1)}%;background:${f.color}"></div>
-      </div>
-      <div class="fc-units">${alive ? `HP:${b?Math.ceil(Math.max(0,b.hp)):'-'} 兵:${cnt}${cbTxt}` : '☠ 撃墜'}</div>
-    </div>`;
-  }).join('');
-}
-
-function selectFaction(id) {
-  if (gameOver || !bases[id].alive) return;
-  if (playerFaction >= 0) return; // 予測ロック: 一度選んだら変更不可
-  playerFaction = id;
-  addLog(`▶ ${FDEF[id].name}に予測固定！ もう変更できません`, FDEF[id].color);
-  renderPanel(); updateBtns();
-}
-
-// ── Power history ─────────────────────────────────────────────
-function sampleHistory() {
-  if (powerHistory.length >= HIST_MAX) powerHistory.shift();
-  powerHistory.push({
-    r: bases[0].alive ? bases[0].hp / bases[0].maxHp : 0,
-    b: bases[1].alive ? bases[1].hp / bases[1].maxHp : 0,
-    g: bases[2].alive ? bases[2].hp / bases[2].maxHp : 0,
-    y: bases[3].alive ? bases[3].hp / bases[3].maxHp : 0,
-  });
-}
-
-function drawHistory() {
-  hCtx.fillStyle = '#0d0d0d';
-  hCtx.fillRect(0, 0, HW, HH);
-
-  const n = powerHistory.length;
-  if (n < 2) return;
-
-  const pad = 2;
-  const ch = HH - pad * 2;
-  const cw = HW - pad * 2;
-
-  const keys = ['r', 'b', 'g', 'y'];
-  const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
-
-  keys.forEach((k, i) => {
-    hCtx.beginPath();
-    for (let j = 0; j < n; j++) {
-      const x = pad + (j / (HIST_MAX - 1)) * cw;
-      const y = pad + ch - powerHistory[j][k] * ch;
-      if (j === 0) hCtx.moveTo(x, y);
-      else hCtx.lineTo(x, y);
-    }
-    hCtx.strokeStyle = colors[i];
-    hCtx.globalAlpha = 0.75;
-    hCtx.lineWidth = 1.5;
-    hCtx.stroke();
-    hCtx.globalAlpha = 1;
-  });
-
-  // Grid line at 50%
-  hCtx.strokeStyle = '#1e1e1e';
-  hCtx.lineWidth = 1;
-  hCtx.beginPath();
-  hCtx.moveTo(pad, pad + ch * 0.5);
-  hCtx.lineTo(pad + cw, pad + ch * 0.5);
-  hCtx.stroke();
-
-  // Player faction highlight (last point)
-  if (playerFaction >= 0 && bases[playerFaction].alive) {
-    const k = keys[playerFaction];
-    const last = powerHistory[n - 1];
-    const x = pad + ((n - 1) / (HIST_MAX - 1)) * cw;
-    const y = pad + ch - last[k] * ch;
-    hCtx.beginPath();
-    hCtx.arc(x, y, 3, 0, Math.PI * 2);
-    hCtx.fillStyle = colors[playerFaction];
-    hCtx.fill();
-  }
-}
-
-// ── Update ────────────────────────────────────────────────────
+// ── Update ───────────────────────────────────────────────────
 function update() {
-  if (gameOver) return;
+  if (gameOver || paused) return;
   frame++;
+  gameTime = frame / 60;
 
-  // Influence regen
-  if (++infTimer >= INF_REGEN && influence < INF_MAX) {
-    influence = Math.min(INF_MAX, influence + 1);
-    infTimer = 0;
-    updateInfUI(); updateBtns();
+  const stats = getPlayerStats();
+
+  // Player movement
+  let mdx = 0, mdy = 0;
+  if (keys['w'] || keys['W'] || keys['ArrowUp']) { mdy = -1; playerControlled = true; }
+  if (keys['s'] || keys['S'] || keys['ArrowDown']) { mdy = 1; playerControlled = true; }
+  if (keys['a'] || keys['A'] || keys['ArrowLeft']) { mdx = -1; playerControlled = true; }
+  if (keys['d'] || keys['D'] || keys['ArrowRight']) { mdx = 1; playerControlled = true; }
+
+  if (touching && (Math.abs(touchDir.x) > 10 || Math.abs(touchDir.y) > 10)) {
+    mdx = touchDir.x; mdy = touchDir.y;
+    playerControlled = true;
   }
 
-  if (shakeF > 0) shakeF--;
-
-  // Spawn
-  bases.forEach(base => {
-    if (!base.alive) return;
-    base.spawnTimer++;
-    base.pulseT += 0.05;
-
-    // 再生型: HP regen
-    if (base.regenRate > 0 && base.hp < base.maxHp) {
-      base.hp = Math.min(base.maxHp, base.hp + base.regenRate);
+  // AI takes over if no input for a while
+  if (mdx === 0 && mdy === 0) {
+    if (playerControlled && frame % 120 === 0) playerControlled = false;
+    if (!playerControlled) {
+      const ai = aiMove();
+      mdx = ai.x; mdy = ai.y;
     }
+  }
 
-    // Comeback: faster spawn when low HP
-    const cbSI = Math.max(30, Math.floor(base.spawnInterval / comebackMult(base)));
-    if (base.spawnTimer >= cbSI &&
-        units.filter(u => u.faction === base.id).length < MAX_UNITS) {
-      spawnUnit(base);
-      base.spawnTimer = 0;
-    }
-  });
+  const mmag = Math.sqrt(mdx*mdx + mdy*mdy) || 1;
+  const speed = PLAYER_SPEED * stats.spdMult;
+  player.x += (mdx/mmag) * speed;
+  player.y += (mdy/mmag) * speed;
+  player.x = clamp(player.x, -WORLD/2, WORLD/2);
+  player.y = clamp(player.y, -WORLD/2, WORLD/2);
 
-  // Unit AI
-  units.forEach(u => {
-    u.fighting = false;
-    const f = FDEF[u.faction];
-    const base = bases[u.faction];
-    const cb = comebackMult(base);
-    const uSpd = UNIT_SPEED * f.speedMult * (1 + (cb - 1) * 0.5);
+  if (player.invincible > 0) player.invincible--;
 
-    let ne = null, ned = Infinity;
-    for (const o of units) {
-      if (o.faction === u.faction) continue;
-      const d = dst(u.x, u.y, o.x, o.y);
-      if (d < ned) { ned = d; ne = o; }
-    }
+  // HP regen
+  if (stats.regen > 0 && player.hp < stats.maxHp) {
+    player.hp = Math.min(stats.maxHp, player.hp + stats.regen / 60);
+  }
 
-    let tb = null, tbd = Infinity;
-    for (const b of bases) {
-      if (!b.alive || b.id === u.faction) continue;
-      const d = dst(u.x, u.y, b.tx, b.ty);
-      if (d < tbd) { tbd = d; tb = b; }
-    }
+  // Waves
+  waveTimer++;
+  if (waveTimer >= 900 + waveNum * 60) { // ~15s + scaling
+    spawnWave();
+  }
 
-    let dvx = u.vx, dvy = u.vy;
+  // Ambient spawns
+  if (frame % 90 === 0) ambientSpawn();
 
-    if (ne && ned < 120) {
-      const dx = ne.x - u.x, dy = ne.y - u.y;
-      const d = Math.sqrt(dx*dx+dy*dy) || 1;
-      dvx = (dx/d) * uSpd; dvy = (dy/d) * uSpd;
-      if (ned < ATTACK_RANGE) {
-        u.fighting = true; ne.fighting = true;
-        u.hp  -= COMBAT_DPS;
-        ne.hp -= COMBAT_DPS * f.damageMult * cb;
-        if (visRng() < 0.25)
-          burst((u.x+ne.x)*0.5, (u.y+ne.y)*0.5, '#fff', 2, 2);
-      }
-    } else if (tb) {
-      u.wanderA += rnd(-0.15, 0.15);
-      const dx = tb.tx - u.x, dy = tb.ty - u.y;
-      const d = Math.sqrt(dx*dx+dy*dy) || 1;
-      dvx = (dx/d) * uSpd + Math.cos(u.wanderA) * WANDER_STR;
-      dvy = (dy/d) * uSpd + Math.sin(u.wanderA) * WANDER_STR;
-    }
+  // Update weapons
+  updateWeapons();
 
-    u.vx += (dvx - u.vx) * 0.12;
-    u.vy += (dvy - u.vy) * 0.12;
-    const spd = Math.sqrt(u.vx*u.vx + u.vy*u.vy) || 1;
-    if (spd > uSpd * 1.15) { u.vx = u.vx/spd * uSpd; u.vy = u.vy/spd * uSpd; }
-
-    u.x += u.vx; u.y += u.vy;
-    if (u.x - UNIT_R < 0)  { u.x = UNIT_R;   u.vx =  Math.abs(u.vx); }
-    if (u.x + UNIT_R > W)  { u.x = W-UNIT_R; u.vx = -Math.abs(u.vx); }
-    if (u.y - UNIT_R < 0)  { u.y = UNIT_R;   u.vy =  Math.abs(u.vy); }
-    if (u.y + UNIT_R > H)  { u.y = H-UNIT_R; u.vy = -Math.abs(u.vy); }
-
-    u.trail.push({ x: u.x, y: u.y });
-    if (u.trail.length > TRAIL_LEN) u.trail.shift();
-
-    bases.forEach(b => {
-      if (!b.alive || b.id === u.faction) return;
-      if (dst(u.x, u.y, b.tx, b.ty) < BASE_R) {
-        const dmg = UNIT_DMG * f.damageMult * cb;
-        b.hp -= dmg; b.pulseT = 0;
-        bases[u.faction].killCount++;
-        burst(u.x, u.y, f.color, 6, 3.5);
-        burst(b.tx + vrnd(-10,10), b.ty + vrnd(-10,10), FDEF[b.id].color, 4, 2.5);
-        addFloat(b.tx, b.ty, `-${Math.ceil(dmg)}`, f.color);
-        u.hp = -1;
+  // Update projectiles
+  projectiles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.life--;
+    enemies.forEach(e => {
+      if (p.pierce <= 0 || p.hit.has(e)) return;
+      if (dist(p, e) < e.r + p.r) {
+        damageEnemy(e, p.dmg, e.x, e.y);
+        p.hit.add(e);
+        p.pierce--;
+        burst(e.x, e.y, p.color, 5, 2, 3);
       }
     });
   });
+  projectiles = projectiles.filter(p => p.life > 0 && p.pierce > 0);
 
-  units = units.filter(u => {
-    if (u.hp <= 0) { burst(u.x, u.y, FDEF[u.faction].color, 7, 3); return false; }
-    return true;
+  // Update enemies
+  enemies.forEach(e => {
+    if (e.hp <= 0) return;
+    const a = angle(e, player);
+    e.x += Math.cos(a) * e.speed;
+    e.y += Math.sin(a) * e.speed;
+    if (e.flashTimer > 0) e.flashTimer--;
+    if (e.hitCooldown > 0) e.hitCooldown--;
+
+    // Contact damage to player
+    if (dist(e, player) < e.r + 12 && player.invincible <= 0) {
+      const dmg = e.dmg * stats.armorMult;
+      player.hp -= dmg;
+      player.invincible = 30;
+      addDmgText(player.x, player.y - 20, Math.ceil(dmg).toString(), '#f44');
+      burst(player.x, player.y, '#f44', 8, 3, 3);
+      triggerShake(6, 3);
+    }
   });
+  enemies = enemies.filter(e => e.hp > 0);
 
-  bases.forEach(b => {
-    if (!b.alive || b.hp > 0) return;
-    b.hp = 0; b.alive = false;
-    units = units.filter(u => {
-      if (u.faction === b.id) { burst(u.x, u.y, FDEF[b.id].color, 8, 4); return false; }
-      return true;
-    });
-    burst(b.tx, b.ty, FDEF[b.id].color, 70, 8);
-    burst(b.tx, b.ty, '#ffffff', 32, 12);
-    triggerShake(28);
-    addFloat(b.tx, b.ty, '撃墜！', FDEF[b.id].color);
-    addLog(`💥 ${FDEF[b.id].name} 撃墜！`, FDEF[b.id].color);
+  // XP gems
+  xpGems.forEach(g => {
+    g.life--;
+    const d = dist(player, g);
+    if (d < stats.attractRange) {
+      const a = angle(g, player);
+      const pull = Math.min(8, (stats.attractRange - d) / stats.attractRange * 8);
+      g.x += Math.cos(a) * pull;
+      g.y += Math.sin(a) * pull;
+    }
+    if (d < XP_COLLECT_RANGE) {
+      addXp(g.xp);
+      g.life = 0;
+    }
   });
+  xpGems = xpGems.filter(g => g.life > 0);
 
+  // Particles
   particles.forEach(p => {
     p.x += p.vx; p.y += p.vy;
-    p.vx *= 0.94; p.vy *= 0.94;
+    p.vx *= 0.95; p.vy *= 0.95;
     p.life -= p.decay;
   });
   particles = particles.filter(p => p.life > 0);
 
-  floats.forEach(t => { t.y += t.vy; t.life -= 0.017; });
-  floats = floats.filter(t => t.life > 0);
+  // Damage texts
+  damageTexts.forEach(t => { t.y += t.vy; t.life -= 0.025; });
+  damageTexts = damageTexts.filter(t => t.life > 0);
 
-  // History sample
-  if (frame % HIST_SAMPLE === 0) sampleHistory();
+  // Lightning bolts
+  lightningBolts.forEach(b => b.life--);
+  lightningBolts = lightningBolts.filter(b => b.life > 0);
 
-  // Late-game pressure: prevents deadlocks while preserving early faction dynamics.
-  if (frame > 12000) {
-    const pressure = Math.min(4, 0.2 + (frame - 12000) / 4000);
-    bases.forEach(b => { if (b.alive) b.hp -= pressure; });
-    if (frame === 12001 || frame % 1800 === 0) addLog('⚠ 終盤圧力: 膠着を崩す決戦フェーズ', '#bb77ff');
-  }
+  if (shakeF > 0) { shakeF--; if (shakeF === 0) shakeMag = 0; }
 
-  // Win check
-  const alive = bases.filter(b => b.alive);
-  if (alive.length <= 1) {
+  // Check death
+  if (player.hp <= 0) {
     gameOver = true;
-    sampleHistory();
-    const ov   = document.getElementById('result-overlay');
-    const ttl  = document.getElementById('result-title');
-    const pred = document.getElementById('result-prediction');
-    const stats = document.getElementById('result-stats');
-    if (alive.length === 1) {
-      const winner = alive[0];
-      ttl.textContent = `🏆 ${winner.name} の勝利！`;
-      ttl.style.color = winner.color;
-      if (playerFaction >= 0) {
-        if (playerFaction === winner.id) {
-          pred.textContent = '✨ 予測的中！おめでとう！';
-          pred.style.color = '#ffe066';
-        } else {
-          pred.textContent = `あなたの ${FDEF[playerFaction].name} は敗退...`;
-          pred.style.color = '#777';
-        }
-      } else {
-        pred.textContent = '次は陣営を選んで応援してみよう！';
-        pred.style.color = '#777';
-      }
-      stats.textContent = `介入回数: ${interventionCount}回 | フレーム: ${frame} | SEED: ${currentSeed}`;
-    } else {
-      ttl.textContent = '引き分け！';
-      ttl.style.color = '#ccc';
-      pred.textContent = '';
-      stats.textContent = `介入回数: ${interventionCount}回 | SEED: ${currentSeed}`;
-    }
-    ov.style.display = 'flex';
-    addLog('🏆 バトル終了！', '#aaa');
+    burst(player.x, player.y, '#f44', 50, 8, 6);
+    burst(player.x, player.y, '#fff', 30, 6, 5);
+    triggerShake(30, 10);
+    showGameOver();
   }
 
-  if (frame % 6 === 0) { renderPanel(); updateBtns(); }
+  // UI updates
+  if (frame % 6 === 0) updateUI();
 }
 
-// ── Draw helpers ──────────────────────────────────────────────
-function hex2(v) { return Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0'); }
-function ca(hex, a) { return hex + hex2(a*255); }
-
-function drawGrid() {
-  ctx.strokeStyle = '#161616'; ctx.lineWidth = 1;
-  for (let x = 0; x <= W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y = 0; y <= H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+function showGameOver() {
+  const el = document.getElementById('game-over-overlay');
+  const min = Math.floor(gameTime / 60);
+  const sec = Math.floor(gameTime % 60);
+  document.getElementById('go-stats').innerHTML =
+    `Time: ${min}:${sec.toString().padStart(2,'0')}<br>` +
+    `Wave: ${waveNum}<br>` +
+    `Kills: ${kills}<br>` +
+    `Level: ${player.level}<br>` +
+    `Weapons: ${Object.keys(playerWeapons).map(k => WEAPONS[k].icon).join(' ')}`;
+  el.style.display = 'flex';
 }
 
-function drawBase(b) {
-  const f = FDEF[b.id];
-  if (b.alive) {
-    const pulse = 0.5 + 0.5 * Math.sin(b.pulseT);
-    const cb = comebackMult(b);
-    // Extra glow when comeback active
-    const glowRadius = cb > 1.05 ? 20 + pulse * 16 : 15 + pulse * 12;
-    ctx.save();
-    ctx.shadowColor = f.glow; ctx.shadowBlur = glowRadius;
-    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R + 4 + pulse*3, 0, Math.PI*2);
-    ctx.fillStyle = ca(f.color, 0.14); ctx.fill();
-    ctx.restore();
-
-    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI*2);
-    ctx.fillStyle = ca(f.color, 0.22); ctx.fill();
-    ctx.strokeStyle = f.color; ctx.lineWidth = 3; ctx.stroke();
-
-    // HP arc
-    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R+9, -Math.PI/2, Math.PI*1.5);
-    ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 5; ctx.stroke();
-    const ratio = b.hp / b.maxHp;
-    if (ratio > 0) {
-      ctx.beginPath();
-      ctx.arc(b.tx, b.ty, BASE_R+9, -Math.PI/2, -Math.PI/2 + Math.PI*2*ratio);
-      ctx.strokeStyle = f.color; ctx.lineWidth = 5; ctx.stroke();
-    }
-
-    // Player selection ring
-    if (playerFaction === b.id) {
-      ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R+18, 0, Math.PI*2);
-      ctx.strokeStyle = ca(f.color, 0.55); ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
-    }
-
-    // Comeback indicator ring
-    if (cb > 1.05) {
-      ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R + 22 + pulse*2, 0, Math.PI*2);
-      ctx.strokeStyle = ca('#ffffff', 0.18 + pulse * 0.12); ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 13px "Courier New", monospace';
-    ctx.fillText(f.name, b.tx, b.ty - 7);
-    ctx.font = '11px "Courier New", monospace';
-    ctx.fillText(Math.ceil(Math.max(0, b.hp)), b.tx, b.ty + 9);
-  } else {
-    ctx.beginPath(); ctx.arc(b.tx, b.ty, BASE_R, 0, Math.PI*2);
-    ctx.fillStyle = '#161616'; ctx.fill();
-    ctx.strokeStyle = '#2e2e2e'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#3e3e3e';
-    ctx.font = 'bold 12px "Courier New", monospace';
-    ctx.fillText('撃墜', b.tx, b.ty);
-  }
+function updateUI() {
+  const stats = getPlayerStats();
+  const min = Math.floor(gameTime / 60);
+  const sec = Math.floor(gameTime % 60);
+  document.getElementById('timer').textContent = `${min}:${sec.toString().padStart(2,'0')}`;
+  document.getElementById('wave-info').textContent = `WAVE ${waveNum}`;
+  document.getElementById('kill-count').textContent = `KILLS: ${kills}`;
+  document.getElementById('level-info').textContent = `Lv.${player.level}`;
+  document.getElementById('xp-bar-fill').style.width = (player.xp / player.xpNext * 100) + '%';
+  document.getElementById('hp-bar-fill').style.width = (Math.max(0, player.hp) / stats.maxHp * 100) + '%';
+  document.getElementById('hp-label').textContent = `HP: ${Math.ceil(Math.max(0, player.hp))} / ${Math.ceil(stats.maxHp)}`;
 }
 
-function drawUnit(u) {
-  const f = FDEF[u.faction];
-  for (let i = 0; i < u.trail.length; i++) {
-    const t = u.trail[i];
-    ctx.beginPath();
-    ctx.arc(t.x, t.y, Math.max(0.5, UNIT_R*0.5*(i/u.trail.length)), 0, Math.PI*2);
-    ctx.fillStyle = ca(f.color, (i/u.trail.length)*0.32);
-    ctx.fill();
-  }
+// ── Drawing ──────────────────────────────────────────────────
+function draw() {
+  // Camera
+  camX = lerp(camX, player.x - W/2, 0.08);
+  camY = lerp(camY, player.y - H/2, 0.08);
+
+  ctx.fillStyle = '#0a0a12';
+  ctx.fillRect(0, 0, W, H);
+
   ctx.save();
-  ctx.shadowColor = f.glow; ctx.shadowBlur = u.fighting ? 14 : 6;
-  ctx.beginPath(); ctx.arc(u.x, u.y, UNIT_R, 0, Math.PI*2);
-  ctx.fillStyle = u.fighting ? f.glow : f.color; ctx.fill();
-  ctx.restore();
+  if (shakeF > 0) {
+    ctx.translate(rnd(-shakeMag, shakeMag), rnd(-shakeMag, shakeMag));
+  }
+  ctx.translate(-camX, -camY);
 
-  const hr = u.hp / u.maxHp;
-  const bw = UNIT_R * 2.4, bx = u.x - bw/2, by = u.y - UNIT_R - 5;
-  ctx.fillStyle = '#111'; ctx.fillRect(bx, by, bw, 2.5);
-  ctx.fillStyle = hr > 0.5 ? '#2ecc71' : hr > 0.25 ? '#f39c12' : '#e74c3c';
-  ctx.fillRect(bx, by, bw * hr, 2.5);
-}
+  // Grid
+  const gridSize = 80;
+  ctx.strokeStyle = '#14141e';
+  ctx.lineWidth = 1;
+  const startX = Math.floor((camX) / gridSize) * gridSize;
+  const startY = Math.floor((camY) / gridSize) * gridSize;
+  for (let x = startX; x < camX + W + gridSize; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, camY); ctx.lineTo(x, camY + H); ctx.stroke();
+  }
+  for (let y = startY; y < camY + H + gridSize; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(camX, y); ctx.lineTo(camX + W, y); ctx.stroke();
+  }
 
-function drawParticles() {
+  // World bounds
+  ctx.strokeStyle = '#2a1a1a';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-WORLD/2, -WORLD/2, WORLD, WORLD);
+
+  // XP gems
+  xpGems.forEach(g => {
+    const pulse = 0.7 + 0.3 * Math.sin(frame * 0.08 + g.x);
+    ctx.save();
+    ctx.shadowColor = g.color;
+    ctx.shadowBlur = 8 * pulse;
+    ctx.beginPath();
+    // Diamond shape
+    ctx.moveTo(g.x, g.y - g.r);
+    ctx.lineTo(g.x + g.r * 0.7, g.y);
+    ctx.lineTo(g.x, g.y + g.r);
+    ctx.lineTo(g.x - g.r * 0.7, g.y);
+    ctx.closePath();
+    ctx.fillStyle = g.color;
+    ctx.globalAlpha = pulse;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  });
+
+  // Particles
   particles.forEach(p => {
     ctx.globalAlpha = p.life * p.life;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2);
-    ctx.fillStyle = p.color; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
   });
   ctx.globalAlpha = 1;
-}
 
-function drawFloats() {
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  floats.forEach(t => {
-    ctx.globalAlpha = t.life * t.life;
-    ctx.font = 'bold 14px "Courier New", monospace';
+  // Lightning bolts
+  lightningBolts.forEach(b => {
+    ctx.globalAlpha = b.life / 12;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 2 + b.life / 4;
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.moveTo(b.x1, b.y1);
+    // Jagged line
+    const dx = b.x2 - b.x1, dy = b.y2 - b.y1;
+    const steps = 5;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const jx = i < steps ? rnd(-15, 15) : 0;
+      const jy = i < steps ? rnd(-15, 15) : 0;
+      ctx.lineTo(b.x1 + dx * t + jx, b.y1 + dy * t + jy);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  });
+
+  // Enemies
+  enemies.forEach(e => {
+    if (e.hp <= 0) return;
+    const sx = e.x - camX, sy = e.y - camY;
+    if (sx < -50 || sx > W + 50 || sy < -50 || sy > H + 50) return;
+
+    ctx.save();
+    if (e.flashTimer > 0) {
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = 15;
+    }
+
+    // Body
+    ctx.beginPath();
+    if (e.type === 'boss') {
+      // Boss: octagon
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 / 8) * i + frame * 0.01;
+        const px = e.x + Math.cos(a) * e.r;
+        const py = e.y + Math.sin(a) * e.r;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    } else if (e.type === 'tank') {
+      // Tank: square-ish
+      ctx.rect(e.x - e.r, e.y - e.r, e.r*2, e.r*2);
+    } else if (e.type === 'fast') {
+      // Fast: triangle
+      ctx.moveTo(e.x, e.y - e.r);
+      ctx.lineTo(e.x + e.r, e.y + e.r * 0.7);
+      ctx.lineTo(e.x - e.r, e.y + e.r * 0.7);
+      ctx.closePath();
+    } else {
+      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    }
+    ctx.fillStyle = e.flashTimer > 0 ? '#fff' : e.color;
+    ctx.fill();
+    ctx.restore();
+
+    // HP bar for tanks and bosses
+    if (e.type === 'tank' || e.type === 'boss') {
+      const bw = e.r * 2.5, bh = 3;
+      const bx = e.x - bw/2, by = e.y - e.r - 8;
+      ctx.fillStyle = '#111';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = e.type === 'boss' ? '#f4a' : '#84c';
+      ctx.fillRect(bx, by, bw * (e.hp / e.maxHp), bh);
+    }
+  });
+
+  // Projectiles
+  projectiles.forEach(p => {
+    ctx.save();
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Aura visual
+  if (playerWeapons.aura) {
+    const w = playerWeapons.aura;
+    const range = WEAPONS.aura.baseRange + w.level * 10;
+    const pulse = 0.08 + 0.04 * Math.sin(frame * 0.06);
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, range, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 220, 80, ${pulse})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 220, 80, ${pulse * 2})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Orb visual
+  if (playerWeapons.orb) {
+    const w = playerWeapons.orb;
+    const count = w.level + WEAPONS.orb.baseCount - 1;
+    const radius = WEAPONS.orb.baseRadius + w.level * 8;
+
+    // Orbit trail
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(120, 80, 255, 0.08)';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+
+    for (let i = 0; i < count; i++) {
+      const a = w.angle + (Math.PI * 2 / count) * i;
+      const ox = player.x + Math.cos(a) * radius;
+      const oy = player.y + Math.sin(a) * radius;
+      ctx.save();
+      ctx.shadowColor = '#a6f';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 8 + w.level, 0, Math.PI * 2);
+      ctx.fillStyle = '#a6f';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Shockwave visual
+  if (playerWeapons.wave) {
+    const w = playerWeapons.wave;
+    const interval = Math.max(60, WEAPONS.wave.baseInterval - w.level * 10);
+    const progress = w.timer / interval;
+    if (progress > 0.85) {
+      const range = WEAPONS.wave.baseRange + w.level * 15;
+      const pulse = (progress - 0.85) / 0.15;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, range * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 160, 60, ${(1 - pulse) * 0.4})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
+
+  // Player
+  const blink = player.invincible > 0 && Math.floor(frame / 3) % 2;
+  if (!blink) {
+    ctx.save();
+    ctx.shadowColor = '#4af';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#4af';
+    ctx.fill();
+    ctx.restore();
+
+    // Inner glow
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  // Damage texts
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  damageTexts.forEach(t => {
+    ctx.globalAlpha = t.life;
     ctx.fillStyle = t.color;
     ctx.fillText(t.text, t.x, t.y);
   });
   ctx.globalAlpha = 1;
-}
 
-// ── Main loop ─────────────────────────────────────────────────
-function loop() {
-  update();
-
-  const sx = shakeF > 0 ? (visRng()-0.5)*9 : 0;
-  const sy = shakeF > 0 ? (visRng()-0.5)*9 : 0;
-
-  ctx.save();
-  if (shakeF > 0) ctx.translate(sx, sy);
-  ctx.fillStyle = '#0a0a0a'; ctx.fillRect(-12, -12, W+24, H+24);
-  drawGrid();
-  drawParticles();
-  bases.forEach(drawBase);
-  units.forEach(drawUnit);
-  drawFloats();
   ctx.restore();
 
-  if (frame % HIST_SAMPLE === 0) drawHistory();
+  // Minimap
+  drawMinimap();
 
-  document.getElementById('ui-units').textContent = units.length;
-  document.getElementById('ui-parts').textContent = particles.length;
-  document.getElementById('ui-frame').textContent = frame;
+  // Enemy count warning off-screen indicators
+  drawOffscreenIndicators();
+}
 
+function drawMinimap() {
+  const size = 100;
+  const mx = W - size - 10, my = 55;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(mx, my, size, size);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(mx, my, size, size);
+
+  const scale = size / WORLD;
+
+  // Enemies as dots
+  enemies.forEach(e => {
+    const ex = mx + (e.x + WORLD/2) * scale;
+    const ey = my + (e.y + WORLD/2) * scale;
+    ctx.fillStyle = e.type === 'boss' ? '#f4a' : 'rgba(200,60,60,0.7)';
+    ctx.fillRect(ex - 1, ey - 1, e.type === 'boss' ? 3 : 2, e.type === 'boss' ? 3 : 2);
+  });
+
+  // Player
+  const px = mx + (player.x + WORLD/2) * scale;
+  const py = my + (player.y + WORLD/2) * scale;
+  ctx.fillStyle = '#4af';
+  ctx.fillRect(px - 2, py - 2, 4, 4);
+}
+
+function drawOffscreenIndicators() {
+  enemies.forEach(e => {
+    if (e.type !== 'boss' && e.type !== 'tank') return;
+    const sx = e.x - camX, sy = e.y - camY;
+    if (sx > -20 && sx < W + 20 && sy > -20 && sy < H + 20) return;
+
+    // Arrow at screen edge
+    const cx = W/2, cy = H/2;
+    const a = Math.atan2(sy - cy, sx - cx);
+    const margin = 30;
+    let ix = cx + Math.cos(a) * (W/2 - margin);
+    let iy = cy + Math.sin(a) * (H/2 - margin);
+    ix = clamp(ix, margin, W - margin);
+    iy = clamp(iy, margin, H - margin);
+
+    ctx.save();
+    ctx.translate(ix, iy);
+    ctx.rotate(a);
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(-6, -5);
+    ctx.lineTo(-6, 5);
+    ctx.closePath();
+    ctx.fillStyle = e.type === 'boss' ? '#f4a' : '#84c';
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(frame * 0.08);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  });
+}
+
+// ── Main Loop ────────────────────────────────────────────────
+let started = false;
+
+function loop() {
+  if (started) {
+    update();
+    draw();
+  }
   requestAnimationFrame(loop);
 }
 
-document.getElementById('btn-restart').addEventListener('click', () => {
-  currentSeed = Math.floor(Math.random() * 99999) + 1;
-  history.replaceState(null, '', '?seed=' + currentSeed);
-  document.getElementById('seed-val').textContent = currentSeed;
-  playerFaction = -1;
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('start-overlay').style.display = 'none';
+  started = true;
   init();
 });
 
-init();
+document.getElementById('go-restart').addEventListener('click', () => {
+  init();
+});
+
 loop();
 </script>
 </body>
