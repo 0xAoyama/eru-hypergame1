@@ -253,6 +253,7 @@ makeBrickTex();
 
 let cf=0; // corridor animation frame
 function drawDungeon(){
+  if(!G)return;
   const W=440,H=240,c=dx;
   cf++;
 
@@ -621,10 +622,10 @@ function init(){
 
 document.addEventListener('click',()=>ea(),{once:true});
 
-// Dungeon canvas animation loop
+init();
+// Dungeon canvas animation loop (after init so G exists)
 function animLoop(){drawDungeon();requestAnimationFrame(animLoop)}
 animLoop();
-init();
 </script>
 </body>
 </html>
