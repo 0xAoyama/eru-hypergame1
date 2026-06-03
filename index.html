@@ -1405,11 +1405,32 @@ function drawOffscreenIndicators() {
   });
 }
 
-// ── Main Loop ────────────────────────────────────────────────
+// ── Main Loop (fixed timestep) ───────────────────────────────
 started = false;
+const TICK_RATE = 1000 / 60; // 60 updates per second
+const MAX_CATCH_UP = 5;      // max updates per frame to prevent spiral of death
+let lastTime = 0;
+let accumulator = 0;
 
-function loop() {
-  if (started) { update(); draw(); }
+function loop(now) {
+  if (!lastTime) lastTime = now;
+  let elapsed = now - lastTime;
+  lastTime = now;
+  // Clamp large gaps (tab switch, etc.)
+  if (elapsed > 200) elapsed = 200;
+
+  if (started) {
+    accumulator += elapsed;
+    let steps = 0;
+    while (accumulator >= TICK_RATE && steps < MAX_CATCH_UP) {
+      update();
+      accumulator -= TICK_RATE;
+      steps++;
+    }
+    // Drop remaining accumulator if we hit max catch-up to avoid spiral
+    if (steps >= MAX_CATCH_UP) accumulator = 0;
+    draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -1421,7 +1442,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
 });
 document.getElementById('go-restart').addEventListener('click', () => { ensureAudio(); init(); });
 
-loop();
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
