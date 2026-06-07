@@ -207,7 +207,7 @@ let ghosts=[{pos:0},{pos:0},{pos:0}];
 
 // Visual state for tile-based hop movement
 let visualCell=0, hopProgress=0, lastCell=0, hopping=false;
-let combatAnim={hitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45};
+let combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0};
 let particles=[], floaters=[];
 // Per-cell decoration seeds (deterministic from cell index)
 let cellDecoCache={};
@@ -267,7 +267,7 @@ function initGame(s){
   cells=[];generateCells(0,80);
   ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
-  combatAnim={hitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45};
+  combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0};
   particles=[];floaters=[];
   cellDecoCache={};
   sidebarDirty=true;
@@ -547,28 +547,24 @@ function updateVisualState(dt){
 
   // Attack animation — one-shot cycle triggered by attack tick only
   if(combatAnim.attackActive){
-    // Advance in real time so animation is readable regardless of speed multiplier
     combatAnim.attackTimer+=dt;
     const dur=combatAnim.attackDuration;
     const p=Math.min(combatAnim.attackTimer/dur,1);
     const reach=TILE_W*0.22;
     if(p<0.35){
-      // Lunge forward
       const t=p/0.35;
       const arcY=hopArcY(t*0.85)*0.6;
       combatAnim.heroLungeX=reach*t;
       combatAnim.heroHopY=arcY;
       combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
     } else if(p<0.50){
-      // Contact — spark + enemy knockback flash
       const t=(p-0.35)/0.15;
       combatAnim.heroLungeX=reach*(1-t*0.15);
       combatAnim.heroHopY=0;
-      combatAnim.enemyLungeX=4*Math.sin(t*Math.PI); // small knockback
+      combatAnim.enemyLungeX=4*Math.sin(t*Math.PI);
       combatAnim.enemyHopY=0;
       if(t<0.3){combatAnim.contactSpark=1;combatAnim.hitFlash=0.35;}
     } else {
-      // Return to own tile
       const t=(p-0.50)/0.50;
       combatAnim.heroLungeX=reach*(1-t)*0.85;
       combatAnim.heroHopY=-Math.sin(t*Math.PI)*4;
@@ -581,14 +577,57 @@ function updateVisualState(dt){
       combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
       combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
       combatAnim.contactSpark=0;
+      // Start enemy counter-attack if enemy is still alive
+      if(inCombat){
+        combatAnim.counterActive=true;combatAnim.counterTimer=0;
+      }
+    }
+  } else if(combatAnim.counterActive){
+    // Enemy counter-attack: hop left toward hero, hit, return
+    combatAnim.counterTimer+=dt;
+    const dur=combatAnim.counterDuration;
+    const p=Math.min(combatAnim.counterTimer/dur,1);
+    const reach=TILE_W*0.18; // slightly shorter lunge than hero
+    if(p<0.35){
+      const t=p/0.35;
+      const arcY=hopArcY(t*0.85)*0.5;
+      combatAnim.enemyLungeX=-reach*t; // lunge LEFT toward hero
+      combatAnim.enemyHopY=arcY;
+      combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
+    } else if(p<0.50){
+      const t=(p-0.35)/0.15;
+      combatAnim.enemyLungeX=-reach*(1-t*0.15);
+      combatAnim.enemyHopY=0;
+      combatAnim.heroKnockX=-3*Math.sin(t*Math.PI); // hero small knockback
+      if(t<0.3){combatAnim.contactSpark=1;combatAnim.heroHitFlash=0.35;}
+      // Spawn hero-hit particles once at contact start
+      if(t<0.15){
+        const W2=canvas.width/devicePixelRatio;
+        const contactX=PLAYER_TILE_OFFSET*TILE_W+TILE_W/2;
+        spawnParticle(contactX,80,'#fa4',3);
+      }
+    } else {
+      const t=(p-0.50)/0.50;
+      combatAnim.enemyLungeX=-reach*(1-t)*0.85;
+      combatAnim.enemyHopY=-Math.sin(t*Math.PI)*3;
+      combatAnim.heroKnockX=-3*(1-t)*Math.max(0,1-t*2);
+      combatAnim.contactSpark*=0.85;
+    }
+    if(p>=1){
+      combatAnim.counterActive=false;combatAnim.counterTimer=0;
+      combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
+      combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
+      combatAnim.heroKnockX=0;combatAnim.contactSpark=0;
     }
   } else {
     // Idle — decay any residual values
     combatAnim.heroLungeX*=0.8;combatAnim.enemyLungeX*=0.8;
     combatAnim.heroHopY*=0.8;combatAnim.enemyHopY*=0.8;
+    combatAnim.heroKnockX*=0.8;
     combatAnim.contactSpark*=0.8;
   }
   combatAnim.hitFlash=Math.max(0,combatAnim.hitFlash-dt*2);
+  combatAnim.heroHitFlash=Math.max(0,combatAnim.heroHitFlash-dt*2);
 
   // Track enemy hp for damage floaters
   if(inCombat){
@@ -873,7 +912,7 @@ function renderField(){
     const ex=enemyBaseX+combatAnim.enemyLungeX;
     const ey=groundY-20+combatAnim.enemyHopY;
     const sz=en.isBoss?16:12;
-    const enemySquash=Math.abs(combatAnim.enemyHopY)>1?1:hopSquash(combatAnim.hopPhase>0.85?combatAnim.hopPhase:0);
+    const enemySquash=Math.abs(combatAnim.enemyHopY)>1?1:1;
 
     // Enemy shadow
     ctx.fillStyle='rgba(0,0,0,0.15)';
@@ -930,7 +969,7 @@ function renderField(){
   }
 
   // === Player character with hop animation ===
-  let heroX=px+combatAnim.heroLungeX;
+  let heroX=px+combatAnim.heroLungeX+combatAnim.heroKnockX;
   let hopY=inCombat?combatAnim.heroHopY:0;
   let squash=1;
   // Determine step phase for limb animation
@@ -940,7 +979,7 @@ function renderField(){
     // Interpolate x from lastCell to current cell
     const fromX=tilePx+(lastCell-firstTile)*TILE_W+TILE_W/2;
     const toX=tilePx+(player.cell-firstTile)*TILE_W+TILE_W/2;
-    heroX=fromX+(toX-fromX)*hopProgress+combatAnim.heroLungeX;
+    heroX=fromX+(toX-fromX)*hopProgress+combatAnim.heroLungeX+combatAnim.heroKnockX;
     hopY=hopArcY(hopProgress);
     squash=hopSquash(hopProgress);
     stepAlt=hopProgress<0.5?0:1;
@@ -990,6 +1029,12 @@ function renderField(){
   // Shield
   ctx.fillStyle='#4060a0';ctx.fillRect(heroX-7,heroY-5,3,7);
   ctx.fillStyle='#5080c0';ctx.fillRect(heroX-6,heroY-3,1,3);
+
+  // Hero hit flash (during enemy counter-attack)
+  if(combatAnim.heroHitFlash>0){
+    ctx.fillStyle='rgba(255,255,255,'+combatAnim.heroHitFlash+')';
+    ctx.fillRect(heroX-6,heroY-14,12,24);
+  }
 
   ctx.restore(); // end squash transform
 
