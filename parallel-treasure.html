@@ -207,7 +207,7 @@ let ghosts=[{pos:0},{pos:0},{pos:0}];
 
 // Visual state for tile-based hop movement
 let visualCell=0, hopProgress=0, lastCell=0, hopping=false;
-let combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0};
+let combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
 let particles=[], floaters=[];
 // Per-cell decoration seeds (deterministic from cell index)
 let cellDecoCache={};
@@ -267,7 +267,7 @@ function initGame(s){
   cells=[];generateCells(0,80);
   ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
-  combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0};
+  combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
   particles=[];floaters=[];
   cellDecoCache={};
   sidebarDirty=true;
@@ -441,62 +441,43 @@ function update(dt){
 
   // Combat: fight enemy in NEXT cell while staying in current cell
   if(nextHasEnemy){
+    // Reset combatTimer when switching to a new target
+    if(player.combatTarget!==nextCell.enemy){
+      player.combatTimer=0;
+      combatAnim.pendingHeroHit=null;combatAnim.heroDamageApplied=false;
+      combatAnim.pendingCounterHit=null;combatAnim.counterDamageApplied=false;
+    }
     player.combatTarget=nextCell.enemy;
-    player.combatTimer+=sDt;
+    // Only advance timer when no attack/counter anim is playing
+    if(!combatAnim.attackActive&&!combatAnim.counterActive){
+      player.combatTimer+=sDt;
+    }
     const atkInterval=Math.max(0.15,1.2-totalSpd()*0.03);
-    if(player.combatTimer>=atkInterval){
+    if(player.combatTimer>=atkInterval&&!combatAnim.attackActive&&!combatAnim.counterActive){
       player.combatTimer-=atkInterval;
       const en=nextCell.enemy;
-      // Trigger one-shot attack animation
-      combatAnim.attackActive=true;combatAnim.attackTimer=0;
+      // Calculate hero damage and store as pending
       let dmg=Math.max(1,totalAtk()+R.nextInt(-2,2));
       let critHit=false;
       if(R.chance(player.crit/100)){dmg=Math.floor(dmg*1.8);critHit=true;}
-      en.hp-=dmg;
-      if(player.poison>0)en.poisonDmg+=player.poison;
-      if(en.poisonDmg>0){
-        const pdmg=Math.floor(en.poisonDmg*0.3);
-        en.hp-=pdmg;en.poisonDmg=Math.max(0,en.poisonDmg-pdmg*0.5);
-      }
-      if(player.lifesteal>0)player.hp=Math.min(player.maxHp,player.hp+Math.floor(dmg*player.lifesteal/100));
-      // Enemy attacks back
-      if(en.hp>0){
-        let eDmg=Math.max(1,en.atk+R.nextInt(-1,1)-Math.floor(totalVit()*0.2)-Math.floor(player.guard*0.3));
-        if(eDmg<1)eDmg=1;
-        player.hp-=eDmg;
-        if(player.thorns>0)en.hp-=Math.floor(eDmg*player.thorns/100);
-      }
-
-      if(en.hp<=0){
-        const defeatX=(PLAYER_TILE_OFFSET+1)*TILE_W+TILE_W/2;
-        spawnParticle(defeatX,80,en.isBoss?'#f4f':'#f84',12);
-        spawnFloater(defeatX-10,50,'DEFEAT!','#ff4');
-        combatAnim.hitFlash=0.5;
-        addLog(en.name+'をたおした！(+'+en.exp+'EXP)'+(en.isBoss?' 🏆':''),'combat');
-        giveExp(en.exp);player.kills++;
-        if(en.isBoss)player.bossKills++;
-        // Drop
-        const dropRate=0.25+totalLuk()*0.005+player.chestBonus/100;
-        if(R.chance(dropRate)){
-          const eq=makeEquip(player.cell+1);lastDrop=eq;
-          const gem=R.pick(GEM_NAMES);
-          const statGain=R.pick(['ATK','VIT','SPD','LUK','INT']);
-          addLog(en.name+'がトレジャードロップ！','loot');
-          addLog('Lv'+eq.ilvl+eq.name+'をゲット！('+RARITY_LABELS[eq.rarity]+')','loot');
-          if(R.chance(0.3))addLog(en.name+'が'+gem+'をドロップ！('+statGain+'+1)','drop-stat');
-          tryEquip(eq);
-        }
-        nextCell.enemy=null;nextCell.type='empty';player.combatTarget=null;
-      }
-      if(player.hp<=0){
-        player.hp=player.maxHp;player.cell=Math.max(0,player.cell-5);
-        visualCell=player.cell;hopProgress=0;hopping=false;lastCell=player.cell;
-        addLog('ちからつきた… 5マスもどる','combat');
-        player.combatTarget=null;
-      }
+      let poisonDmg=0;
+      if(player.poison>0){en.poisonDmg+=player.poison;}
+      if(en.poisonDmg>0){poisonDmg=Math.floor(en.poisonDmg*0.3);}
+      // Pre-calculate counter damage
+      let eDmg=Math.max(1,en.atk+R.nextInt(-1,1)-Math.floor(totalVit()*0.2)-Math.floor(player.guard*0.3));
+      if(eDmg<1)eDmg=1;
+      combatAnim.pendingHeroHit={dmg,critHit,poisonDmg,en,nextCell};
+      combatAnim.heroDamageApplied=false;
+      combatAnim.pendingCounterHit={eDmg,en,nextCell};
+      combatAnim.counterDamageApplied=false;
+      // Trigger one-shot attack animation (damage applied at contact in updateVisualState)
+      combatAnim.attackActive=true;combatAnim.attackTimer=0;
     }
   } else {
     player.combatTarget=null;
+    player.combatTimer=0;
+    combatAnim.pendingHeroHit=null;combatAnim.heroDamageApplied=false;
+    combatAnim.pendingCounterHit=null;combatAnim.counterDamageApplied=false;
     player.moveTimer+=sDt;
     const moveInterval=Math.max(0.1,0.5-totalSpd()*0.008);
     if(player.moveTimer>=moveInterval){
@@ -521,6 +502,73 @@ function update(dt){
 
 // ===== Render field canvas =====
 let prevEnemyHp={};
+
+function applyHeroHit(){
+  const h=combatAnim.pendingHeroHit;if(!h||combatAnim.heroDamageApplied)return;
+  combatAnim.heroDamageApplied=true;
+  const en=h.en;
+  en.hp-=h.dmg;
+  if(h.poisonDmg>0){en.hp-=h.poisonDmg;en.poisonDmg=Math.max(0,en.poisonDmg-h.poisonDmg*0.5);}
+  if(player.lifesteal>0)player.hp=Math.min(player.maxHp,player.hp+Math.floor(h.dmg*player.lifesteal/100));
+  // Floater/particles for enemy damage
+  const contactX=(PLAYER_TILE_OFFSET+1)*TILE_W+TILE_W*0.1;
+  const totalDmg=h.dmg+h.poisonDmg;
+  spawnFloater(contactX+Math.random()*10-5,60+Math.random()*10,'-'+totalDmg,h.critHit?'#f4f':'#ff4');
+  spawnParticle(contactX,80,'#f84',4);
+  combatAnim.hitFlash=0.35;
+  if(en.hp<=0){
+    handleEnemyDefeat(en,h.nextCell);
+  }
+}
+
+function applyEnemyCounterHit(){
+  const c=combatAnim.pendingCounterHit;if(!c||combatAnim.counterDamageApplied)return;
+  combatAnim.counterDamageApplied=true;
+  const en=c.en;
+  player.hp-=c.eDmg;
+  // Thorns
+  if(player.thorns>0){
+    const thornsDmg=Math.floor(c.eDmg*player.thorns/100);
+    en.hp-=thornsDmg;
+  }
+  // Floater for player damage
+  const contactX=PLAYER_TILE_OFFSET*TILE_W+TILE_W/2;
+  spawnFloater(contactX+Math.random()*10-5,50+Math.random()*10,'-'+c.eDmg,'#fa4');
+  // Check thorns kill
+  if(en.hp<=0){
+    handleEnemyDefeat(en,c.nextCell);
+  }
+  // Check player death
+  if(player.hp<=0){
+    player.hp=player.maxHp;player.cell=Math.max(0,player.cell-5);
+    visualCell=player.cell;hopProgress=0;hopping=false;lastCell=player.cell;
+    addLog('ちからつきた… 5マスもどる','combat');
+    player.combatTarget=null;
+    combatAnim.pendingHeroHit=null;combatAnim.pendingCounterHit=null;
+  }
+}
+
+function handleEnemyDefeat(en,nextCell){
+  const defeatX=(PLAYER_TILE_OFFSET+1)*TILE_W+TILE_W/2;
+  spawnParticle(defeatX,80,en.isBoss?'#f4f':'#f84',12);
+  spawnFloater(defeatX-10,50,'DEFEAT!','#ff4');
+  combatAnim.hitFlash=0.5;
+  addLog(en.name+'をたおした！(+'+en.exp+'EXP)'+(en.isBoss?' 🏆':''),'combat');
+  giveExp(en.exp);player.kills++;
+  if(en.isBoss)player.bossKills++;
+  const dropRate=0.25+totalLuk()*0.005+player.chestBonus/100;
+  if(R.chance(dropRate)){
+    const eq=makeEquip(player.cell+1);lastDrop=eq;
+    const gem=R.pick(GEM_NAMES);
+    const statGain=R.pick(['ATK','VIT','SPD','LUK','INT']);
+    addLog(en.name+'がトレジャードロップ！','loot');
+    addLog('Lv'+eq.ilvl+eq.name+'をゲット！('+RARITY_LABELS[eq.rarity]+')','loot');
+    if(R.chance(0.3))addLog(en.name+'が'+gem+'をドロップ！('+statGain+'+1)','drop-stat');
+    tryEquip(eq);
+  }
+  nextCell.enemy=null;nextCell.type='empty';player.combatTarget=null;
+  combatAnim.pendingCounterHit=null;
+}
 
 function updateVisualState(dt){
   const sDt=dt*speedMult;
@@ -563,7 +611,7 @@ function updateVisualState(dt){
       combatAnim.heroHopY=0;
       combatAnim.enemyLungeX=4*Math.sin(t*Math.PI);
       combatAnim.enemyHopY=0;
-      if(t<0.3){combatAnim.contactSpark=1;combatAnim.hitFlash=0.35;}
+      if(t<0.3){combatAnim.contactSpark=1;applyHeroHit();}
     } else {
       const t=(p-0.50)/0.50;
       combatAnim.heroLungeX=reach*(1-t)*0.85;
@@ -577,8 +625,8 @@ function updateVisualState(dt){
       combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
       combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
       combatAnim.contactSpark=0;
-      // Start enemy counter-attack if enemy is still alive
-      if(inCombat){
+      // Start enemy counter-attack only if enemy survived hero hit
+      if(inCombat&&combatAnim.pendingCounterHit&&combatAnim.pendingCounterHit.en.hp>0){
         combatAnim.counterActive=true;combatAnim.counterTimer=0;
       }
     }
@@ -599,13 +647,7 @@ function updateVisualState(dt){
       combatAnim.enemyLungeX=-reach*(1-t*0.15);
       combatAnim.enemyHopY=0;
       combatAnim.heroKnockX=-3*Math.sin(t*Math.PI); // hero small knockback
-      if(t<0.3){combatAnim.contactSpark=1;combatAnim.heroHitFlash=0.35;}
-      // Spawn hero-hit particles once at contact start
-      if(t<0.15){
-        const W2=canvas.width/devicePixelRatio;
-        const contactX=PLAYER_TILE_OFFSET*TILE_W+TILE_W/2;
-        spawnParticle(contactX,80,'#fa4',3);
-      }
+      if(t<0.3){combatAnim.contactSpark=1;combatAnim.heroHitFlash=0.35;applyEnemyCounterHit();}
     } else {
       const t=(p-0.50)/0.50;
       combatAnim.enemyLungeX=-reach*(1-t)*0.85;
@@ -629,18 +671,7 @@ function updateVisualState(dt){
   combatAnim.hitFlash=Math.max(0,combatAnim.hitFlash-dt*2);
   combatAnim.heroHitFlash=Math.max(0,combatAnim.heroHitFlash-dt*2);
 
-  // Track enemy hp for damage floaters
-  if(inCombat){
-    const en=player.combatTarget;
-    if(prevEnemyHp.v!==undefined&&en.hp<prevEnemyHp.v){
-      const dmg=prevEnemyHp.v-en.hp;
-      const W2=canvas.width/devicePixelRatio;
-      const contactX=PLAYER_TILE_OFFSET*TILE_W+TILE_W+TILE_W*0.1;
-      spawnFloater(contactX+Math.random()*10-5,60+Math.random()*10,'-'+dmg,'#ff4');
-      spawnParticle(contactX,80,'#f84',4);
-    }
-    prevEnemyHp.v=en.hp;
-  }
+  // (damage floaters are now spawned directly in applyHeroHit/applyEnemyCounterHit)
 
   // Update particles
   for(let i=particles.length-1;i>=0;i--){
