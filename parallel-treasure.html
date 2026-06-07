@@ -240,6 +240,9 @@ let ghosts=[{pos:0},{pos:0},{pos:0}];
 // Visual state for tile-based hop movement
 let visualCell=0, hopProgress=0, lastCell=0, hopping=false;
 let combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:BALANCE.attackDuration,counterActive:false,counterTimer:0,counterDuration:BALANCE.counterDuration,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
+let deathAnim={active:false,type:'none',timer:0,duration:0.6,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
+let currentCombatDist=0;
+const PARTICLE_MAX=250;
 let particles=[], floaters=[];
 // Per-cell decoration seeds (deterministic from cell index)
 let cellDecoCache={};
@@ -263,7 +266,7 @@ function getCellDeco(cellIdx){
 }
 
 function spawnParticle(x,y,color,count){
-  for(let i=0;i<count;i++){
+  for(let i=0;i<count&&particles.length<PARTICLE_MAX;i++){
     particles.push({x,y,vx:(Math.random()-0.5)*3,vy:-Math.random()*3-1,life:0.6+Math.random()*0.4,maxLife:1,color,size:Math.random()*3+1});
   }
 }
@@ -308,6 +311,8 @@ function initGame(s){
   ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
   combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:BALANCE.attackDuration,counterActive:false,counterTimer:0,counterDuration:BALANCE.counterDuration,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
+  deathAnim={active:false,type:'none',timer:0,duration:0.6,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
+  currentCombatDist=0;
   particles=[];floaters=[];
   cellDecoCache={};
   sidebarDirty=true;
@@ -480,11 +485,17 @@ function update(dt){
   // Ghost parallel worlds
   for(const g of ghosts){g.pos+=(sDt*g.speed*(0.8+Math.sin(gameTime*0.3+g.speed)*0.3));}
 
-  // Check next cell for enemy (adjacency combat)
-  const nextCell=cells[player.cell+1];
-  const nextHasEnemy=nextCell&&nextCell.enemy&&nextCell.enemy.hp>0;
+  // Check cell+2 for enemy (combat distance 2 = 1マス空け)
+  // If enemy at +1 (safety), clear it so combat is always at distance 2
+  const cellAt1=cells[player.cell+1];
+  if(cellAt1&&cellAt1.enemy&&cellAt1.enemy.hp>0){cellAt1.enemy=null;cellAt1.type='empty';}
+  const cellAt2=cells[player.cell+2];
+  const has2=cellAt2&&cellAt2.enemy&&cellAt2.enemy.hp>0;
+  const nextCell=has2?cellAt2:null;
+  const nextHasEnemy=has2&&!deathAnim.active;
+  currentCombatDist=2;
 
-  // Combat: fight enemy in NEXT cell while staying in current cell
+  // Combat: fight enemy while staying in current cell
   if(nextHasEnemy){
     // Reset combatTimer when switching to a new target
     if(player.combatTarget!==nextCell.enemy){
@@ -525,6 +536,7 @@ function update(dt){
     player.combatTimer=0;
     combatAnim.pendingHeroHit=null;combatAnim.heroDamageApplied=false;
     combatAnim.pendingCounterHit=null;combatAnim.counterDamageApplied=false;
+    if(deathAnim.active){sidebarDirty=true;return;} // freeze during death anim
     player.moveTimer+=sDt;
     const moveInterval=Math.max(0.1,0.5-totalSpd()*0.008);
     if(player.moveTimer>=moveInterval){
@@ -558,7 +570,7 @@ function applyHeroHit(){
   if(h.poisonDmg>0){en.hp-=h.poisonDmg;en.poisonDmg=Math.max(0,en.poisonDmg-h.poisonDmg*0.5);}
   if(player.lifesteal>0)player.hp=Math.min(player.maxHp,player.hp+Math.floor(h.dmg*player.lifesteal/100));
   // Floater/particles for enemy damage
-  const contactX=(PLAYER_TILE_OFFSET+1)*TILE_W+TILE_W*0.1;
+  const contactX=(PLAYER_TILE_OFFSET+currentCombatDist)*TILE_W+TILE_W*0.1;
   const totalDmg=h.dmg+h.poisonDmg;
   spawnFloater(contactX+Math.random()*10-5,60+Math.random()*10,'-'+totalDmg,h.critHit?'#f4f':'#ff4');
   spawnParticle(contactX,80,'#f84',4);
@@ -585,28 +597,26 @@ function applyEnemyCounterHit(){
   if(en.hp<=0){
     handleEnemyDefeat(en,c.nextCell);
   }
-  // Check player death
-  if(player.hp<=0){
-    player.hp=player.maxHp;player.cell=Math.max(0,player.cell-5);
-    visualCell=player.cell;hopProgress=0;hopping=false;lastCell=player.cell;
-    clearNearbyMobs(player.cell);
-    addLog('ちからつきた… 5マスもどる','combat');
+  // Check player death — start death animation instead of instant reset
+  if(player.hp<=0&&!deathAnim.active){
+    deathAnim={active:true,type:'player',timer:0,duration:0.55,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
     player.combatTarget=null;
     combatAnim.pendingHeroHit=null;combatAnim.pendingCounterHit=null;
+    combatAnim.attackActive=false;combatAnim.counterActive=false;
   }
 }
 
 function handleEnemyDefeat(en,nextCell){
-  const defeatX=(PLAYER_TILE_OFFSET+1)*TILE_W+TILE_W/2;
+  if(deathAnim.active)return; // prevent double death
+  const defeatX=(PLAYER_TILE_OFFSET+currentCombatDist)*TILE_W+TILE_W/2;
   spawnParticle(defeatX,80,en.isBoss?'#f4f':'#f84',12);
-  spawnFloater(defeatX-10,50,'DEFEAT!','#ff4');
   combatAnim.hitFlash=0.5;
   addLog(en.name+'をたおした！(+'+en.exp+'EXP)'+(en.isBoss?' 🏆':''),'combat');
   giveExp(en.exp);player.kills++;
   if(en.isBoss)player.bossKills++;
   const dropRate=BALANCE.dropRate+totalLuk()*0.005+player.chestBonus/100;
   if(R.chance(dropRate)){
-    const eq=makeEquip(player.cell+1);lastDrop=eq;
+    const eq=makeEquip(player.cell+currentCombatDist);lastDrop=eq;
     const gem=R.pick(GEM_NAMES);
     const statGain=R.pick(['ATK','VIT','SPD','LUK','INT']);
     addLog(en.name+'がトレジャードロップ！','loot');
@@ -614,8 +624,11 @@ function handleEnemyDefeat(en,nextCell){
     if(R.chance(0.3))addLog(en.name+'が'+gem+'をドロップ！('+statGain+'+1)','drop-stat');
     tryEquip(eq);
   }
-  nextCell.enemy=null;nextCell.type='empty';player.combatTarget=null;
-  combatAnim.pendingCounterHit=null;
+  // Start death animation — visual clear deferred, loot already processed
+  deathAnim={active:true,type:'enemy',timer:0,duration:0.6,startX:defeatX,startY:60,entity:en,cellRef:nextCell,particlesSpawned:false,dist:currentCombatDist};
+  player.combatTarget=null;
+  combatAnim.pendingCounterHit=null;combatAnim.pendingHeroHit=null;
+  combatAnim.attackActive=false;combatAnim.counterActive=false;
 }
 
 function updateVisualState(dt){
@@ -646,7 +659,7 @@ function updateVisualState(dt){
     combatAnim.attackTimer+=dt;
     const dur=combatAnim.attackDuration;
     const p=Math.min(combatAnim.attackTimer/dur,1);
-    const reach=TILE_W*0.22;
+    const reach=currentCombatDist>=2?TILE_W*0.9:TILE_W*0.22;
     if(p<0.35){
       const t=p/0.35;
       const arcY=hopArcY(t*0.85)*0.6;
@@ -683,10 +696,10 @@ function updateVisualState(dt){
     combatAnim.counterTimer+=dt;
     const dur=combatAnim.counterDuration;
     const p=Math.min(combatAnim.counterTimer/dur,1);
-    const reach=TILE_W*0.18; // slightly shorter lunge than hero
+    const reach=currentCombatDist>=2?TILE_W*1.8:TILE_W*0.18;
     if(p<0.35){
       const t=p/0.35;
-      const arcY=hopArcY(t*0.85)*0.5;
+      const arcY=hopArcY(t*0.85)*(currentCombatDist>=2?0.8:0.5);
       combatAnim.enemyLungeX=-reach*t; // lunge LEFT toward hero
       combatAnim.enemyHopY=arcY;
       combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
@@ -694,13 +707,15 @@ function updateVisualState(dt){
       const t=(p-0.35)/0.15;
       combatAnim.enemyLungeX=-reach*(1-t*0.15);
       combatAnim.enemyHopY=0;
-      combatAnim.heroKnockX=-3*Math.sin(t*Math.PI); // hero small knockback
+      const knockStr=currentCombatDist>=2?8:3;
+      combatAnim.heroKnockX=-knockStr*Math.sin(t*Math.PI);
       if(t<0.3){combatAnim.contactSpark=1;combatAnim.heroHitFlash=0.35;applyEnemyCounterHit();}
     } else {
       const t=(p-0.50)/0.50;
       combatAnim.enemyLungeX=-reach*(1-t)*0.85;
       combatAnim.enemyHopY=-Math.sin(t*Math.PI)*3;
-      combatAnim.heroKnockX=-3*(1-t)*Math.max(0,1-t*2);
+      const knockStr=currentCombatDist>=2?8:3;
+      combatAnim.heroKnockX=-knockStr*(1-t)*Math.max(0,1-t*2);
       combatAnim.contactSpark*=0.85;
     }
     if(p>=1){
@@ -720,6 +735,31 @@ function updateVisualState(dt){
   combatAnim.heroHitFlash=Math.max(0,combatAnim.heroHitFlash-dt*2);
 
   // (damage floaters are now spawned directly in applyHeroHit/applyEnemyCounterHit)
+
+  // Death animation update
+  if(deathAnim.active){
+    deathAnim.timer+=dt;
+    const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
+    if(!deathAnim.particlesSpawned&&dp>0.05){
+      deathAnim.particlesSpawned=true;
+      const dir=deathAnim.type==='enemy'?1:-1;
+      const bx=deathAnim.type==='enemy'?deathAnim.startX:(PLAYER_TILE_OFFSET*TILE_W+TILE_W/2);
+      for(let i=0;i<25&&particles.length<PARTICLE_MAX;i++){
+        particles.push({x:bx,y:80,vx:(Math.random()*4+1)*dir+(Math.random()-0.5)*2,vy:-Math.random()*5-2,life:0.5+Math.random()*0.5,maxLife:1,color:deathAnim.type==='enemy'?'#f84':'#4af',size:Math.random()*4+2});
+      }
+    }
+    if(dp>=1){
+      if(deathAnim.type==='enemy'){
+        if(deathAnim.cellRef){deathAnim.cellRef.enemy=null;deathAnim.cellRef.type='empty';}
+      } else {
+        player.hp=player.maxHp;player.cell=Math.max(0,player.cell-5);
+        visualCell=player.cell;hopProgress=0;hopping=false;lastCell=player.cell;
+        clearNearbyMobs(player.cell);
+        addLog('ちからつきた… 5マスもどる','combat');
+      }
+      deathAnim.active=false;
+    }
+  }
 
   // Update particles
   for(let i=particles.length-1;i>=0;i--){
@@ -932,7 +972,7 @@ function renderField(){
     const cell=cells[cellIdx];
     if(!cell)continue;
 
-    const combatCellIdx=player.combatTarget?player.cell+1:-1;
+    const combatCellIdx=player.combatTarget?player.cell+currentCombatDist:-1;
     if(cell.enemy&&cell.enemy.hp>0&&cellIdx!==combatCellIdx){
       const en=cell.enemy;
       const ey=groundY-20;
@@ -987,7 +1027,7 @@ function renderField(){
 
   if(inCombat){
     const en=player.combatTarget;
-    const enemyBaseX=px+TILE_W;
+    const enemyBaseX=px+TILE_W*currentCombatDist;
     const ex=enemyBaseX+combatAnim.enemyLungeX;
     const ey=groundY-20+combatAnim.enemyHopY;
     const sz=en.isBoss?16:12;
@@ -1047,15 +1087,42 @@ function renderField(){
     }
   }
 
+  // === Death animation (enemy flying away) ===
+  if(deathAnim.active&&deathAnim.type==='enemy'&&deathAnim.entity){
+    const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
+    const den=deathAnim.entity;
+    const dsz=den.isBoss?16:12;
+    // Fly upper-right with rotation and shrink
+    const flyX=deathAnim.startX+dp*TILE_W*2.5;
+    const flyY=deathAnim.startY-dp*80-Math.sin(dp*Math.PI)*40;
+    const rot=dp*Math.PI*3;
+    const scale=Math.max(0,(1-dp*1.2));
+    const alpha=Math.max(0,1-dp*1.5);
+    ctx.save();ctx.globalAlpha=alpha;
+    ctx.translate(flyX,flyY);ctx.rotate(rot);ctx.scale(scale,scale);
+    ctx.fillStyle=den.isBoss?'#8020a0':'#a03030';
+    ctx.fillRect(-dsz/2,-dsz/2,dsz,dsz);
+    ctx.fillStyle='#f44';ctx.fillRect(-3,-dsz/2+3,2,2);ctx.fillRect(2,-dsz/2+3,2,2);
+    // Flash overlay
+    ctx.fillStyle='rgba(255,255,200,'+Math.max(0,0.8-dp)+')';
+    ctx.fillRect(-dsz/2-1,-dsz/2-1,dsz+2,dsz+2);
+    ctx.restore();
+    // DEFEAT text
+    if(dp<0.7){
+      ctx.save();ctx.globalAlpha=Math.max(0,1-dp/0.7);
+      ctx.fillStyle='#ff4';ctx.font='bold 14px monospace';
+      ctx.fillText('DEFEAT!',deathAnim.startX-25,deathAnim.startY-20-dp*30);
+      ctx.restore();
+    }
+  }
+
   // === Player character with hop animation ===
   let heroX=px+combatAnim.heroLungeX+combatAnim.heroKnockX;
   let hopY=inCombat?combatAnim.heroHopY:0;
   let squash=1;
-  // Determine step phase for limb animation
-  let stepAlt=player.cell%2; // alternating step per cell
+  let stepAlt=player.cell%2;
 
   if(hopping){
-    // Interpolate x from lastCell to current cell
     const fromX=tilePx+(lastCell-firstTile)*TILE_W+TILE_W/2;
     const toX=tilePx+(player.cell-firstTile)*TILE_W+TILE_W/2;
     heroX=fromX+(toX-fromX)*hopProgress+combatAnim.heroLungeX+combatAnim.heroKnockX;
@@ -1067,55 +1134,86 @@ function renderField(){
   const baseHeroY=groundY-22;
   const heroY=baseHeroY+hopY;
 
-  // Shadow (squashes with hop height)
-  ctx.fillStyle='rgba(0,0,0,0.2)';
-  ctx.beginPath();ctx.ellipse(heroX,groundY,8-Math.abs(hopY)*0.2,3,0,0,Math.PI*2);ctx.fill();
+  // Player death animation — fly upper-left with rotation/shrink
+  const playerDying=deathAnim.active&&deathAnim.type==='player';
+  if(playerDying){
+    const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
+    const flyOffX=-dp*TILE_W*3;
+    const flyOffY=-dp*70-Math.sin(dp*Math.PI)*50;
+    const rot=-dp*Math.PI*3.5;
+    const sc=Math.max(0,1-dp*1.1);
+    const alpha=Math.max(0,1-dp*1.3);
+    ctx.save();ctx.globalAlpha=alpha;
+    ctx.translate(heroX+flyOffX,heroY+flyOffY);ctx.rotate(rot);ctx.scale(sc,sc);
+    // Simplified hero body for death spin
+    ctx.fillStyle='#3070d0';ctx.fillRect(-5,-6,10,10);
+    ctx.fillStyle='#e8c090';ctx.fillRect(-4,-12,8,7);
+    ctx.fillStyle='#604020';ctx.fillRect(-4,-14,8,4);
+    ctx.fillStyle='#404880';ctx.fillRect(-3,4,3,5);ctx.fillRect(1,4,3,5);
+    // White flash
+    ctx.fillStyle='rgba(255,100,100,'+Math.max(0,0.9-dp)+')';
+    ctx.fillRect(-7,-15,14,22);
+    ctx.restore();
+    // "やられた!" text
+    if(dp<0.6){
+      ctx.save();ctx.globalAlpha=Math.max(0,1-dp/0.6);
+      ctx.fillStyle='#f44';ctx.font='bold 13px monospace';
+      ctx.fillText('やられた！',heroX-30,heroY-25-dp*25);
+      ctx.restore();
+    }
+    // Show HP=0 bar briefly
+    ctx.fillStyle='#030';ctx.fillRect(heroX-12,heroY-20,24,4);
+    ctx.fillStyle='#f44';ctx.fillRect(heroX-12,heroY-20,0,4);
+  } else {
+    // Normal hero rendering
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.2)';
+    ctx.beginPath();ctx.ellipse(heroX,groundY,8-Math.abs(hopY)*0.2,3,0,0,Math.PI*2);ctx.fill();
 
-  // Body with squash
-  ctx.save();
-  ctx.translate(heroX,heroY+6);
-  ctx.scale(1+(squash-1)*0.5,1/squash);
-  ctx.translate(-heroX,-(heroY+6));
+    ctx.save();
+    ctx.translate(heroX,heroY+6);
+    ctx.scale(1+(squash-1)*0.5,1/squash);
+    ctx.translate(-heroX,-(heroY+6));
 
-  // Torso
-  ctx.fillStyle='#3070d0';ctx.fillRect(heroX-5,heroY-6,10,10);
-  // Head
-  ctx.fillStyle='#e8c090';ctx.fillRect(heroX-4,heroY-12,8,7);
-  // Hair
-  ctx.fillStyle='#604020';ctx.fillRect(heroX-4,heroY-14,8,4);
-  // Eyes
-  ctx.fillStyle='#222';ctx.fillRect(heroX+1,heroY-10,2,2);ctx.fillRect(heroX+4,heroY-10,1,2);
+    // Torso
+    ctx.fillStyle='#3070d0';ctx.fillRect(heroX-5,heroY-6,10,10);
+    // Head
+    ctx.fillStyle='#e8c090';ctx.fillRect(heroX-4,heroY-12,8,7);
+    // Hair
+    ctx.fillStyle='#604020';ctx.fillRect(heroX-4,heroY-14,8,4);
+    // Eyes
+    ctx.fillStyle='#222';ctx.fillRect(heroX+1,heroY-10,2,2);ctx.fillRect(heroX+4,heroY-10,1,2);
 
-  // Legs — alternating per step
-  ctx.fillStyle='#404880';
-  const legExt=stepAlt?3:-3;
-  ctx.fillRect(heroX-3,heroY+4,3,5+legExt);
-  ctx.fillRect(heroX+1,heroY+4,3,5-legExt);
-  // Feet
-  ctx.fillStyle='#604020';
-  ctx.fillRect(heroX-4,heroY+8+legExt,4,2);
-  ctx.fillRect(heroX+1,heroY+8-legExt,4,2);
+    // Legs
+    ctx.fillStyle='#404880';
+    const legExt=stepAlt?3:-3;
+    ctx.fillRect(heroX-3,heroY+4,3,5+legExt);
+    ctx.fillRect(heroX+1,heroY+4,3,5-legExt);
+    ctx.fillStyle='#604020';
+    ctx.fillRect(heroX-4,heroY+8+legExt,4,2);
+    ctx.fillRect(heroX+1,heroY+8-legExt,4,2);
 
-  // Arm + weapon swing
-  const armSwing=combatAnim.attackActive?Math.sin(combatAnim.attackTimer/combatAnim.attackDuration*Math.PI*2)*8:(hopping?Math.sin(hopProgress*Math.PI)*4:0);
-  ctx.fillStyle='#e8c090';
-  ctx.save();
-  ctx.translate(heroX+5,heroY-3);ctx.rotate(armSwing*0.15);
-  ctx.fillRect(0,-2,7,3);
-  ctx.fillStyle='#c0c0d0';ctx.fillRect(6,-3,2,8);
-  ctx.fillStyle='#fa0';ctx.fillRect(5,-1,4,2);
-  ctx.restore();
-  // Shield
-  ctx.fillStyle='#4060a0';ctx.fillRect(heroX-7,heroY-5,3,7);
-  ctx.fillStyle='#5080c0';ctx.fillRect(heroX-6,heroY-3,1,3);
+    // Arm + weapon swing
+    const armSwing=combatAnim.attackActive?Math.sin(combatAnim.attackTimer/combatAnim.attackDuration*Math.PI*2)*8:(hopping?Math.sin(hopProgress*Math.PI)*4:0);
+    ctx.fillStyle='#e8c090';
+    ctx.save();
+    ctx.translate(heroX+5,heroY-3);ctx.rotate(armSwing*0.15);
+    ctx.fillRect(0,-2,7,3);
+    ctx.fillStyle='#c0c0d0';ctx.fillRect(6,-3,2,8);
+    ctx.fillStyle='#fa0';ctx.fillRect(5,-1,4,2);
+    ctx.restore();
+    // Shield
+    ctx.fillStyle='#4060a0';ctx.fillRect(heroX-7,heroY-5,3,7);
+    ctx.fillStyle='#5080c0';ctx.fillRect(heroX-6,heroY-3,1,3);
 
-  // Hero hit flash (during enemy counter-attack)
-  if(combatAnim.heroHitFlash>0){
-    ctx.fillStyle='rgba(255,255,255,'+combatAnim.heroHitFlash+')';
-    ctx.fillRect(heroX-6,heroY-14,12,24);
+    // Hero hit flash
+    if(combatAnim.heroHitFlash>0){
+      ctx.fillStyle='rgba(255,255,255,'+combatAnim.heroHitFlash+')';
+      ctx.fillRect(heroX-6,heroY-14,12,24);
+    }
+
+    ctx.restore(); // end squash transform
   }
-
-  ctx.restore(); // end squash transform
 
   // HP bar above player
   const hpPct=player.hp/player.maxHp;
