@@ -163,7 +163,27 @@ function getSeed(){
   return(Date.now()^(Math.random()*0xffff))&0x7fffffff;
 }
 
-// ===== Constants =====
+// ===== Balance constants =====
+const BALANCE={
+  // Combat tempo
+  attackDuration:0.30,    // hero attack anim (was 0.45)
+  counterDuration:0.20,   // mob counter anim (was 0.30)
+  atkIntervalBase:0.80,   // attack cooldown base (was 1.2)
+  atkIntervalMin:0.10,    // attack cooldown floor (was 0.15)
+  atkIntervalSpdScale:0.03,
+  // Enemy scaling
+  enemyHpMult:0.90,       // enemy HP multiplier (−10%)
+  enemyAtkScale:0.10,     // enemy atk dist scale (was 0.12)
+  bossHpMult:0.92,        // boss HP multiplier (−8%)
+  bossAtkScale:0.14,      // boss atk dist scale (was 0.15)
+  // Drops & rewards
+  dropRate:0.30,          // base drop rate (was 0.25)
+  chestRate:0.07,         // chest spawn rate (was 0.05)
+  // EXP / levelling
+  expNextBase:10,
+  expNextScale:1.4,       // expNext growth (was 1.5)
+};
+
 const BOSS_INTERVAL=25;
 const SLOT_NAMES=['ぶき','たて','よろい','ゆびわ','ペット'];
 const SLOT_ICONS=['⚔️','🛡️','🧥','💍','🐾'];
@@ -207,7 +227,7 @@ let ghosts=[{pos:0},{pos:0},{pos:0}];
 
 // Visual state for tile-based hop movement
 let visualCell=0, hopProgress=0, lastCell=0, hopping=false;
-let combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
+let combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:BALANCE.attackDuration,counterActive:false,counterTimer:0,counterDuration:BALANCE.counterDuration,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
 let particles=[], floaters=[];
 // Per-cell decoration seeds (deterministic from cell index)
 let cellDecoCache={};
@@ -267,7 +287,7 @@ function initGame(s){
   cells=[];generateCells(0,80);
   ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
-  combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45,counterActive:false,counterTimer:0,counterDuration:0.30,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
+  combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:BALANCE.attackDuration,counterActive:false,counterTimer:0,counterDuration:BALANCE.counterDuration,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
   particles=[];floaters=[];
   cellDecoCache={};
   sidebarDirty=true;
@@ -281,7 +301,7 @@ function generateCells(from,count){
     const dist=i+1;
     if(dist>0&&dist%BOSS_INTERVAL===0){cell.type='boss';cell.enemy=makeBoss(dist);}
     else if(R.chance(0.35+Math.min(dist*0.002,0.2))){cell.type='enemy';cell.enemy=makeEnemy(dist);}
-    else if(R.chance(0.05)){cell.type='chest';}
+    else if(R.chance(BALANCE.chestRate)){cell.type='chest';}
     cells[i]=cell;
   }
 }
@@ -290,9 +310,10 @@ function makeEnemy(dist){
   const tier=Math.min(Math.floor(dist/10),ENEMY_NAMES.length-1);
   const nameIdx=R.nextInt(Math.max(0,tier-2),tier);
   const lvl=Math.max(1,dist+R.nextInt(-2,2));
-  const mult=1+dist*0.12;
+  const mult=1+dist*BALANCE.enemyAtkScale;
+  const hpRaw=Math.floor((15+lvl*6)*mult*BALANCE.enemyHpMult);
   return{name:ENEMY_NAMES[nameIdx],lv:lvl,
-    hp:Math.floor((15+lvl*6)*mult),maxHp:Math.floor((15+lvl*6)*mult),
+    hp:hpRaw,maxHp:hpRaw,
     atk:Math.floor((3+lvl*2)*mult),int:Math.floor((1+lvl)*mult*0.5),
     vit:Math.floor((2+lvl*1.5)*mult*0.4),spd:Math.max(1,3+Math.floor(lvl*0.3)),
     luk:Math.floor(1+lvl*0.2),guard:0,
@@ -302,9 +323,10 @@ function makeEnemy(dist){
 
 function makeBoss(dist){
   const bIdx=Math.min(Math.floor(dist/BOSS_INTERVAL)-1,BOSS_NAMES.length-1);
-  const lvl=dist+5;const mult=2+dist*0.15;
+  const lvl=dist+5;const mult=2+dist*BALANCE.bossAtkScale;
+  const bHpRaw=Math.floor((100+lvl*20)*mult*BALANCE.bossHpMult);
   return{name:'【BOSS】'+BOSS_NAMES[Math.max(0,bIdx)],lv:lvl,
-    hp:Math.floor((100+lvl*20)*mult),maxHp:Math.floor((100+lvl*20)*mult),
+    hp:bHpRaw,maxHp:bHpRaw,
     atk:Math.floor((10+lvl*4)*mult),int:Math.floor((3+lvl*2)*mult*0.5),
     vit:Math.floor((5+lvl*3)*mult*0.4),spd:Math.max(2,5+Math.floor(lvl*0.2)),
     luk:Math.floor(2+lvl*0.3),guard:Math.floor(lvl*0.5),
@@ -382,7 +404,7 @@ function giveExp(amount){
   player.exp+=Math.floor(amount*bonus);
   while(player.exp>=player.expNext){
     player.exp-=player.expNext;player.lv++;
-    player.expNext=Math.floor(10+player.lv*player.lv*1.5);
+    player.expNext=Math.floor(BALANCE.expNextBase+player.lv*player.lv*BALANCE.expNextScale);
     doStatAlloc();player.hp=player.maxHp;
     addLog('★ レベルアップ！ ➜ Lv'+player.lv,'levelup');
   }
@@ -452,7 +474,7 @@ function update(dt){
     if(!combatAnim.attackActive&&!combatAnim.counterActive){
       player.combatTimer+=sDt;
     }
-    const atkInterval=Math.max(0.15,1.2-totalSpd()*0.03);
+    const atkInterval=Math.max(BALANCE.atkIntervalMin,BALANCE.atkIntervalBase-totalSpd()*BALANCE.atkIntervalSpdScale);
     if(player.combatTimer>=atkInterval&&!combatAnim.attackActive&&!combatAnim.counterActive){
       player.combatTimer-=atkInterval;
       const en=nextCell.enemy;
@@ -556,7 +578,7 @@ function handleEnemyDefeat(en,nextCell){
   addLog(en.name+'をたおした！(+'+en.exp+'EXP)'+(en.isBoss?' 🏆':''),'combat');
   giveExp(en.exp);player.kills++;
   if(en.isBoss)player.bossKills++;
-  const dropRate=0.25+totalLuk()*0.005+player.chestBonus/100;
+  const dropRate=BALANCE.dropRate+totalLuk()*0.005+player.chestBonus/100;
   if(R.chance(dropRate)){
     const eq=makeEquip(player.cell+1);lastDrop=eq;
     const gem=R.pick(GEM_NAMES);
