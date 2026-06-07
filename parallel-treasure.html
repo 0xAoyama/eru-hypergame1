@@ -435,33 +435,37 @@ function update(dt){
   // Ghost parallel worlds
   for(const g of ghosts){g.pos+=(sDt*g.speed*(0.8+Math.sin(gameTime*0.3+g.speed)*0.3));}
 
-  // Combat or move
-  if(myCell&&myCell.enemy&&myCell.enemy.hp>0){
-    player.combatTarget=myCell.enemy;
+  // Check next cell for enemy (adjacency combat)
+  const nextCell=cells[player.cell+1];
+  const nextHasEnemy=nextCell&&nextCell.enemy&&nextCell.enemy.hp>0;
+
+  // Combat: fight enemy in NEXT cell while staying in current cell
+  if(nextHasEnemy){
+    player.combatTarget=nextCell.enemy;
     player.combatTimer+=sDt;
     const atkInterval=Math.max(0.15,1.2-totalSpd()*0.03);
     if(player.combatTimer>=atkInterval){
       player.combatTimer-=atkInterval;
+      const en=nextCell.enemy;
       let dmg=Math.max(1,totalAtk()+R.nextInt(-2,2));
       let critHit=false;
       if(R.chance(player.crit/100)){dmg=Math.floor(dmg*1.8);critHit=true;}
-      myCell.enemy.hp-=dmg;
-      if(player.poison>0)myCell.enemy.poisonDmg+=player.poison;
-      if(myCell.enemy.poisonDmg>0){
-        const pdmg=Math.floor(myCell.enemy.poisonDmg*0.3);
-        myCell.enemy.hp-=pdmg;myCell.enemy.poisonDmg=Math.max(0,myCell.enemy.poisonDmg-pdmg*0.5);
+      en.hp-=dmg;
+      if(player.poison>0)en.poisonDmg+=player.poison;
+      if(en.poisonDmg>0){
+        const pdmg=Math.floor(en.poisonDmg*0.3);
+        en.hp-=pdmg;en.poisonDmg=Math.max(0,en.poisonDmg-pdmg*0.5);
       }
       if(player.lifesteal>0)player.hp=Math.min(player.maxHp,player.hp+Math.floor(dmg*player.lifesteal/100));
       // Enemy attacks back
-      if(myCell.enemy.hp>0){
-        let eDmg=Math.max(1,myCell.enemy.atk+R.nextInt(-1,1)-Math.floor(totalVit()*0.2)-Math.floor(player.guard*0.3));
+      if(en.hp>0){
+        let eDmg=Math.max(1,en.atk+R.nextInt(-1,1)-Math.floor(totalVit()*0.2)-Math.floor(player.guard*0.3));
         if(eDmg<1)eDmg=1;
         player.hp-=eDmg;
-        if(player.thorns>0)myCell.enemy.hp-=Math.floor(eDmg*player.thorns/100);
+        if(player.thorns>0)en.hp-=Math.floor(eDmg*player.thorns/100);
       }
 
-      if(myCell.enemy.hp<=0){
-        const en=myCell.enemy;
+      if(en.hp<=0){
         const defeatX=(PLAYER_TILE_OFFSET+1)*TILE_W+TILE_W/2;
         spawnParticle(defeatX,80,en.isBoss?'#f4f':'#f84',12);
         spawnFloater(defeatX-10,50,'DEFEAT!','#ff4');
@@ -472,7 +476,7 @@ function update(dt){
         // Drop
         const dropRate=0.25+totalLuk()*0.005+player.chestBonus/100;
         if(R.chance(dropRate)){
-          const eq=makeEquip(player.cell);lastDrop=eq;
+          const eq=makeEquip(player.cell+1);lastDrop=eq;
           const gem=R.pick(GEM_NAMES);
           const statGain=R.pick(['ATK','VIT','SPD','LUK','INT']);
           addLog(en.name+'がトレジャードロップ！','loot');
@@ -480,7 +484,7 @@ function update(dt){
           if(R.chance(0.3))addLog(en.name+'が'+gem+'をドロップ！('+statGain+'+1)','drop-stat');
           tryEquip(eq);
         }
-        myCell.enemy=null;myCell.type='empty';player.combatTarget=null;
+        nextCell.enemy=null;nextCell.type='empty';player.combatTarget=null;
       }
       if(player.hp<=0){
         player.hp=player.maxHp;player.cell=Math.max(0,player.cell-5);
@@ -820,7 +824,8 @@ function renderField(){
     const cell=cells[cellIdx];
     if(!cell)continue;
 
-    if(cell.enemy&&cell.enemy.hp>0&&cellIdx!==player.cell){
+    const combatCellIdx=player.combatTarget?player.cell+1:-1;
+    if(cell.enemy&&cell.enemy.hp>0&&cellIdx!==combatCellIdx){
       const en=cell.enemy;
       const ey=groundY-20;
       const bobE=Math.sin(gameTime*4+cellIdx)*2;
