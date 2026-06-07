@@ -165,23 +165,35 @@ function getSeed(){
 
 // ===== Balance constants =====
 const BALANCE={
-  // Combat tempo
-  attackDuration:0.30,    // hero attack anim (was 0.45)
-  counterDuration:0.20,   // mob counter anim (was 0.30)
-  atkIntervalBase:0.80,   // attack cooldown base (was 1.2)
-  atkIntervalMin:0.10,    // attack cooldown floor (was 0.15)
+  // Combat tempo (1.5x speed maintained)
+  attackDuration:0.30,
+  counterDuration:0.20,
+  atkIntervalBase:0.80,
+  atkIntervalMin:0.10,
   atkIntervalSpdScale:0.03,
-  // Enemy scaling
-  enemyHpMult:0.90,       // enemy HP multiplier (−10%)
-  enemyAtkScale:0.10,     // enemy atk dist scale (was 0.12)
-  bossHpMult:0.92,        // boss HP multiplier (−8%)
-  bossAtkScale:0.14,      // boss atk dist scale (was 0.15)
+  // Player HP formula: playerHpBase + totalVit * playerHpPerVit
+  playerHpBase:8,         // Lv1 w/ baseVit=1 → 8+1*2=10
+  playerHpPerVit:2,
+  // Enemy scaling (low-number start)
+  enemyHpBase:8,          // base enemy HP constant
+  enemyHpPerLv:2,         // HP per enemy level
+  enemyDistScale:0.018,   // multiplicative dist scaling
+  enemyAtkBase:1,         // base enemy ATK
+  enemyAtkPerLv:0.5,      // ATK per enemy level
+  // Boss scaling
+  bossHpBase:20,
+  bossHpPerDist:4,
+  bossAtkBase:2,
+  bossAtkPerDist:0.8,
+  bossHpMult:0.92,
   // Drops & rewards
-  dropRate:0.30,          // base drop rate (was 0.25)
-  chestRate:0.07,         // chest spawn rate (was 0.05)
+  dropRate:0.30,
+  chestRate:0.07,
   // EXP / levelling
   expNextBase:10,
-  expNextScale:1.4,       // expNext growth (was 1.5)
+  expNextScale:1.4,
+  // Refresh safety
+  safeMobGap:5,           // min cells between player and nearest mob after refresh
 };
 
 const BOSS_INTERVAL=25;
@@ -192,18 +204,18 @@ const RARITY_LABELS=['コモン','アンコモン','レア','エピック','レ�
 const RARITY_COLORS=['#aaa','#4e8','#4af','#c4f','#fa0'];
 const RARITY_MULT=[1,1.3,1.7,2.2,3];
 const ENCHANT_POOL=[
-  {id:'atk',label:'ATK+',fn:(v,s)=>{s.bonusAtk+=v;},range:[2,20]},
-  {id:'vit',label:'VIT+',fn:(v,s)=>{s.bonusVit+=v;},range:[3,25]},
-  {id:'spd',label:'SPD+',fn:(v,s)=>{s.bonusSpd+=v;},range:[1,10]},
-  {id:'luk',label:'LUK+',fn:(v,s)=>{s.bonusLuk+=v;},range:[1,15]},
-  {id:'crit',label:'クリティカル',fn:(v,s)=>{s.crit+=v;},range:[3,15]},
-  {id:'lifesteal',label:'きゅうけつ',fn:(v,s)=>{s.lifesteal+=v;},range:[2,10]},
-  {id:'poison',label:'どく',fn:(v,s)=>{s.poison+=v;},range:[2,12]},
-  {id:'thorns',label:'はんげき',fn:(v,s)=>{s.thorns+=v;},range:[3,15]},
-  {id:'chest',label:'たからばこ率+',fn:(v,s)=>{s.chestBonus+=v;},range:[3,20]},
-  {id:'expup',label:'けいけんち+',fn:(v,s)=>{s.expBonus+=v;},range:[5,25]},
-  {id:'regen',label:'じどうかいふく',fn:(v,s)=>{s.regen+=v;},range:[1,8]},
-  {id:'int',label:'INT+',fn:(v,s)=>{s.bonusInt+=v;},range:[2,15]},
+  {id:'atk',label:'ATK+',fn:(v,s)=>{s.bonusAtk+=v;},range:[1,5]},
+  {id:'vit',label:'VIT+',fn:(v,s)=>{s.bonusVit+=v;},range:[1,6]},
+  {id:'spd',label:'SPD+',fn:(v,s)=>{s.bonusSpd+=v;},range:[1,3]},
+  {id:'luk',label:'LUK+',fn:(v,s)=>{s.bonusLuk+=v;},range:[1,4]},
+  {id:'crit',label:'クリティカル',fn:(v,s)=>{s.crit+=v;},range:[2,10]},
+  {id:'lifesteal',label:'きゅうけつ',fn:(v,s)=>{s.lifesteal+=v;},range:[1,6]},
+  {id:'poison',label:'どく',fn:(v,s)=>{s.poison+=v;},range:[1,3]},
+  {id:'thorns',label:'はんげき',fn:(v,s)=>{s.thorns+=v;},range:[2,10]},
+  {id:'chest',label:'たからばこ率+',fn:(v,s)=>{s.chestBonus+=v;},range:[2,12]},
+  {id:'expup',label:'けいけんち+',fn:(v,s)=>{s.expBonus+=v;},range:[3,15]},
+  {id:'regen',label:'じどうかいふく',fn:(v,s)=>{s.regen+=v;},range:[1,2]},
+  {id:'int',label:'INT+',fn:(v,s)=>{s.bonusInt+=v;},range:[1,4]},
 ];
 const ENEMY_NAMES=['スライム','ゴブリン','コボルド','スケルトン','バット','ウルフ','オーク','トロール','ガーゴイル','リザードマン','デーモン','ワイバーン','キメラ','リッチ','ドラゴン'];
 const BOSS_NAMES=['やみのばんにん','えんごくのデーモン','ひょうけつのリヴァイアサン','しんえんのリッチ','しゅうえんのドラゴン'];
@@ -266,6 +278,13 @@ function spawnFloater(x,y,text,color){
   floaters.push({x,y,text,color,life:1.2,maxLife:1.2});
 }
 
+function clearNearbyMobs(fromCell){
+  const gap=BALANCE.safeMobGap;
+  for(let i=fromCell;i<fromCell+gap&&i<cells.length;i++){
+    if(cells[i]&&cells[i].enemy){cells[i].enemy=null;cells[i].type='empty';}
+  }
+}
+
 function initGame(s){
   seed=s;R=makeRNG(seed);
   document.getElementById('seed-footer').textContent='SEED: '+seed;
@@ -274,7 +293,7 @@ function initGame(s){
   gameTime=0;eventLog=[];lastDrop=null;
   player={
     cell:0,lv:1,exp:0,expNext:10,
-    baseAtk:5,baseInt:3,baseVit:10,baseSpd:5,baseLuk:3,
+    baseAtk:1,baseInt:1,baseVit:1,baseSpd:2,baseLuk:1,
     hp:0,maxHp:0,
     bonusAtk:0,bonusInt:0,bonusVit:0,bonusSpd:0,bonusLuk:0,
     crit:5,lifesteal:0,poison:0,thorns:0,chestBonus:0,expBonus:0,regen:0,
@@ -285,6 +304,7 @@ function initGame(s){
   };
   recalcStats();player.hp=player.maxHp;
   cells=[];generateCells(0,80);
+  clearNearbyMobs(player.cell);
   ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
   combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:BALANCE.attackDuration,counterActive:false,counterTimer:0,counterDuration:BALANCE.counterDuration,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
@@ -310,28 +330,31 @@ function makeEnemy(dist){
   const tier=Math.min(Math.floor(dist/10),ENEMY_NAMES.length-1);
   const nameIdx=R.nextInt(Math.max(0,tier-2),tier);
   const lvl=Math.max(1,dist+R.nextInt(-2,2));
-  const mult=1+dist*BALANCE.enemyAtkScale;
-  const hpRaw=Math.floor((15+lvl*6)*mult*BALANCE.enemyHpMult);
+  const combatLv=Math.max(1,Math.floor((dist-1)/5)+(dist>=BALANCE.safeMobGap*2?R.nextInt(0,1):0));
+  const mult=1+dist*BALANCE.enemyDistScale;
+  const hpRaw=Math.floor((BALANCE.enemyHpBase+combatLv*BALANCE.enemyHpPerLv)*mult);
+  const atk=Math.floor((BALANCE.enemyAtkBase+combatLv*BALANCE.enemyAtkPerLv)*mult);
   return{name:ENEMY_NAMES[nameIdx],lv:lvl,
     hp:hpRaw,maxHp:hpRaw,
-    atk:Math.floor((3+lvl*2)*mult),int:Math.floor((1+lvl)*mult*0.5),
-    vit:Math.floor((2+lvl*1.5)*mult*0.4),spd:Math.max(1,3+Math.floor(lvl*0.3)),
-    luk:Math.floor(1+lvl*0.2),guard:0,
-    exp:Math.floor(5+lvl*3+dist*0.5),isBoss:false,poisonDmg:0,
-    power:Math.floor((3+lvl*2)*mult+(15+lvl*6)*mult*0.1)};
+    atk:atk,int:Math.max(1,Math.floor(combatLv*0.4*mult)),
+    vit:Math.max(1,Math.floor(combatLv*0.5*mult)),spd:Math.max(1,2+Math.floor(combatLv*0.2)),
+    luk:Math.max(1,Math.floor(1+combatLv*0.15)),guard:0,
+    exp:Math.floor(2+lvl+dist*0.2),isBoss:false,poisonDmg:0,
+    power:Math.floor(atk+hpRaw*0.1)};
 }
 
 function makeBoss(dist){
   const bIdx=Math.min(Math.floor(dist/BOSS_INTERVAL)-1,BOSS_NAMES.length-1);
-  const lvl=dist+5;const mult=2+dist*BALANCE.bossAtkScale;
-  const bHpRaw=Math.floor((100+lvl*20)*mult*BALANCE.bossHpMult);
+  const lvl=dist+5;
+  const bHpRaw=Math.floor((BALANCE.bossHpBase+dist*BALANCE.bossHpPerDist)*BALANCE.bossHpMult);
+  const bAtk=Math.floor(BALANCE.bossAtkBase+dist*BALANCE.bossAtkPerDist);
   return{name:'【BOSS】'+BOSS_NAMES[Math.max(0,bIdx)],lv:lvl,
     hp:bHpRaw,maxHp:bHpRaw,
-    atk:Math.floor((10+lvl*4)*mult),int:Math.floor((3+lvl*2)*mult*0.5),
-    vit:Math.floor((5+lvl*3)*mult*0.4),spd:Math.max(2,5+Math.floor(lvl*0.2)),
-    luk:Math.floor(2+lvl*0.3),guard:Math.floor(lvl*0.5),
-    exp:Math.floor(50+lvl*15+dist*5),isBoss:true,poisonDmg:0,
-    power:Math.floor((10+lvl*4)*mult+(100+lvl*20)*mult*0.05)};
+    atk:bAtk,int:Math.max(1,Math.floor(lvl*0.6)),
+    vit:Math.max(1,Math.floor(lvl*0.8)),spd:Math.max(2,3+Math.floor(lvl*0.15)),
+    luk:Math.max(1,Math.floor(1+lvl*0.2)),guard:Math.floor(lvl*0.3),
+    exp:Math.floor(10+dist*2),isBoss:true,poisonDmg:0,
+    power:Math.floor(bAtk+bHpRaw*0.05)};
 }
 
 function recalcStats(){
@@ -346,9 +369,9 @@ function recalcStats(){
       if(def)def.fn(ench.val,player);
     }
   }
-  const totalVit=player.baseVit+player.bonusVit;
+  const tv=player.baseVit+player.bonusVit;
   const oldMax=player.maxHp;
-  player.maxHp=30+totalVit*5;
+  player.maxHp=BALANCE.playerHpBase+tv*BALANCE.playerHpPerVit;
   if(oldMax>0&&player.hp>0)player.hp=Math.min(player.hp+(player.maxHp-oldMax),player.maxHp);
 }
 
@@ -479,14 +502,16 @@ function update(dt){
       player.combatTimer-=atkInterval;
       const en=nextCell.enemy;
       // Calculate hero damage and store as pending
-      let dmg=Math.max(1,totalAtk()+R.nextInt(-2,2));
+      const atkVar=Math.max(1,Math.floor(totalAtk()*0.3));
+      let dmg=Math.max(1,totalAtk()+R.nextInt(-atkVar,atkVar));
       let critHit=false;
       if(R.chance(player.crit/100)){dmg=Math.floor(dmg*1.8);critHit=true;}
       let poisonDmg=0;
       if(player.poison>0){en.poisonDmg+=player.poison;}
       if(en.poisonDmg>0){poisonDmg=Math.floor(en.poisonDmg*0.3);}
       // Pre-calculate counter damage
-      let eDmg=Math.max(1,en.atk+R.nextInt(-1,1)-Math.floor(totalVit()*0.2)-Math.floor(player.guard*0.3));
+      const eVar=Math.max(1,Math.floor(en.atk*0.3));
+      let eDmg=Math.max(1,en.atk+R.nextInt(-eVar,eVar)-Math.floor(totalVit()*0.15)-Math.floor(player.guard*0.3));
       if(eDmg<1)eDmg=1;
       combatAnim.pendingHeroHit={dmg,critHit,poisonDmg,en,nextCell};
       combatAnim.heroDamageApplied=false;
@@ -564,6 +589,7 @@ function applyEnemyCounterHit(){
   if(player.hp<=0){
     player.hp=player.maxHp;player.cell=Math.max(0,player.cell-5);
     visualCell=player.cell;hopProgress=0;hopping=false;lastCell=player.cell;
+    clearNearbyMobs(player.cell);
     addLog('ちからつきた… 5マスもどる','combat');
     player.combatTarget=null;
     combatAnim.pendingHeroHit=null;combatAnim.pendingCounterHit=null;
