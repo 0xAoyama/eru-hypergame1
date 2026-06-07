@@ -207,7 +207,7 @@ let ghosts=[{pos:0},{pos:0},{pos:0}];
 
 // Visual state for tile-based hop movement
 let visualCell=0, hopProgress=0, lastCell=0, hopping=false;
-let combatAnim={hitFlash:0,hopPhase:0,hopCycle:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0};
+let combatAnim={hitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45};
 let particles=[], floaters=[];
 // Per-cell decoration seeds (deterministic from cell index)
 let cellDecoCache={};
@@ -267,7 +267,7 @@ function initGame(s){
   cells=[];generateCells(0,80);
   ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
-  combatAnim={hitFlash:0,hopPhase:0,hopCycle:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0};
+  combatAnim={hitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:0.45};
   particles=[];floaters=[];
   cellDecoCache={};
   sidebarDirty=true;
@@ -447,6 +447,8 @@ function update(dt){
     if(player.combatTimer>=atkInterval){
       player.combatTimer-=atkInterval;
       const en=nextCell.enemy;
+      // Trigger one-shot attack animation
+      combatAnim.attackActive=true;combatAnim.attackTimer=0;
       let dmg=Math.max(1,totalAtk()+R.nextInt(-2,2));
       let critHit=false;
       if(R.chance(player.crit/100)){dmg=Math.floor(dmg*1.8);critHit=true;}
@@ -543,57 +545,45 @@ function updateVisualState(dt){
     visualCell=player.cell;
   }
 
-  // Combat hop animation — both hero and enemy hop toward each other
-  if(inCombat){
-    const hopSpeed=Math.max(1.5,2.5+speedMult*0.3); // readable even at high speed
-    combatAnim.hopPhase+=sDt*hopSpeed;
-    if(combatAnim.hopPhase>=1){combatAnim.hopPhase-=1;combatAnim.hopCycle++;}
-    const p=combatAnim.hopPhase;
-    const reach=TILE_W*0.22; // how far each hops toward the other
-    const isHeroTurn=combatAnim.hopCycle%2===0;
+  // Attack animation — one-shot cycle triggered by attack tick only
+  if(combatAnim.attackActive){
+    // Advance in real time so animation is readable regardless of speed multiplier
+    combatAnim.attackTimer+=dt;
+    const dur=combatAnim.attackDuration;
+    const p=Math.min(combatAnim.attackTimer/dur,1);
+    const reach=TILE_W*0.22;
     if(p<0.35){
-      // Approach: hop toward each other
+      // Lunge forward
       const t=p/0.35;
-      const arcY=hopArcY(t*0.85)*0.6; // smaller arc
-      if(isHeroTurn){
-        combatAnim.heroLungeX=reach*t;
-        combatAnim.heroHopY=arcY;
-        combatAnim.enemyLungeX=-reach*0.4*t;
-        combatAnim.enemyHopY=arcY*0.4;
-      } else {
-        combatAnim.enemyLungeX=-reach*t;
-        combatAnim.enemyHopY=arcY;
-        combatAnim.heroLungeX=reach*0.4*t;
-        combatAnim.heroHopY=arcY*0.4;
-      }
+      const arcY=hopArcY(t*0.85)*0.6;
+      combatAnim.heroLungeX=reach*t;
+      combatAnim.heroHopY=arcY;
+      combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
     } else if(p<0.50){
-      // Contact — spark, flash
+      // Contact — spark + enemy knockback flash
       const t=(p-0.35)/0.15;
-      if(isHeroTurn){
-        combatAnim.heroLungeX=reach*(1-t*0.15);
-        combatAnim.enemyLungeX=-reach*0.4*(1-t*0.15);
-      } else {
-        combatAnim.enemyLungeX=-reach*(1-t*0.15);
-        combatAnim.heroLungeX=reach*0.4*(1-t*0.15);
-      }
-      combatAnim.heroHopY=0;combatAnim.enemyHopY=0;
+      combatAnim.heroLungeX=reach*(1-t*0.15);
+      combatAnim.heroHopY=0;
+      combatAnim.enemyLungeX=4*Math.sin(t*Math.PI); // small knockback
+      combatAnim.enemyHopY=0;
       if(t<0.3){combatAnim.contactSpark=1;combatAnim.hitFlash=0.35;}
     } else {
-      // Bounce back to own tile
+      // Return to own tile
       const t=(p-0.50)/0.50;
-      const bounceArc=-Math.sin(t*Math.PI)*4; // small bounce on return
-      if(isHeroTurn){
-        combatAnim.heroLungeX=reach*(1-t)*0.85;
-        combatAnim.enemyLungeX=-reach*0.4*(1-t)*0.85;
-      } else {
-        combatAnim.enemyLungeX=-reach*(1-t)*0.85;
-        combatAnim.heroLungeX=reach*0.4*(1-t)*0.85;
-      }
-      combatAnim.heroHopY=bounceArc*(isHeroTurn?1:0.4);
-      combatAnim.enemyHopY=bounceArc*(isHeroTurn?0.4:1);
+      combatAnim.heroLungeX=reach*(1-t)*0.85;
+      combatAnim.heroHopY=-Math.sin(t*Math.PI)*4;
+      combatAnim.enemyLungeX=4*(1-t)*Math.max(0,1-t*2);
+      combatAnim.enemyHopY=0;
       combatAnim.contactSpark*=0.85;
     }
+    if(p>=1){
+      combatAnim.attackActive=false;combatAnim.attackTimer=0;
+      combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
+      combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
+      combatAnim.contactSpark=0;
+    }
   } else {
+    // Idle — decay any residual values
     combatAnim.heroLungeX*=0.8;combatAnim.enemyLungeX*=0.8;
     combatAnim.heroHopY*=0.8;combatAnim.enemyHopY*=0.8;
     combatAnim.contactSpark*=0.8;
@@ -989,7 +979,7 @@ function renderField(){
   ctx.fillRect(heroX+1,heroY+8-legExt,4,2);
 
   // Arm + weapon swing
-  const armSwing=inCombat?Math.sin(combatAnim.hopPhase*Math.PI*2)*6:(hopping?Math.sin(hopProgress*Math.PI)*4:0);
+  const armSwing=combatAnim.attackActive?Math.sin(combatAnim.attackTimer/combatAnim.attackDuration*Math.PI*2)*8:(hopping?Math.sin(hopProgress*Math.PI)*4:0);
   ctx.fillStyle='#e8c090';
   ctx.save();
   ctx.translate(heroX+5,heroY-3);ctx.rotate(armSwing*0.15);
