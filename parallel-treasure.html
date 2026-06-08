@@ -41,6 +41,7 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 
 /* Stat +/- buttons inline */
 .stat-alloc{display:flex;align-items:center;gap:1px;}
+.stat-bonus{font-size:8px;color:#667a9a;margin-left:2px;}
 .stat-alloc .sp-btn{background:none;border:1px solid #3a3d50;color:#667a9a;width:14px;height:14px;font-size:10px;font-family:inherit;cursor:pointer;padding:0;line-height:12px;text-align:center;}
 .stat-alloc .sp-btn:hover{border-color:#fa0;color:#fa0;}
 .stat-alloc .sp-btn.can-alloc{border-color:#fa0;color:#fa0;}
@@ -1217,7 +1218,10 @@ function updateUI(){
   const spInfo=hasSp?'<div class="sp-label">SP:'+player.sp+'</div>':'';
 
   function allocRow(label,total,base,statKey){
-    const btn=hasSp?'<div class="stat-alloc"><span class="stat-val">'+total+'</span><button class="sp-btn can-alloc" data-stat="'+statKey+'">+</button></div>':'<span class="stat-val">'+total+'</span>';
+    const bonus=total-base;
+    const bonusTxt='<span class="stat-bonus">('+base+'+'+bonus+')</span>';
+    const valHtml='<span class="stat-val">'+total+'</span>'+bonusTxt;
+    const btn=hasSp?'<div class="stat-alloc">'+valHtml+'<button class="sp-btn can-alloc" data-stat="'+statKey+'">+</button></div>':'<div class="stat-alloc">'+valHtml+'</div>';
     return '<div class="stat-row"><span class="stat-key">'+label+'</span>'+btn+'</div>';
   }
 
