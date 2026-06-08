@@ -172,23 +172,23 @@ const BALANCE={
   atkIntervalSpdScale:0.03,
   playerHpBase:8,
   playerHpPerVit:2,
-  enemyHpBase:6,
-  enemyHpPerLv:2,
-  enemyDistScale:0.018,
+  enemyHpBase:4,
+  enemyHpPerLv:1.2,
+  enemyDistScale:0.008,
   enemyAtkBase:1,
-  enemyAtkPerLv:0.5,
-  bossHpBase:20,
-  bossHpPerDist:4,
-  bossAtkBase:2,
-  bossAtkPerDist:0.8,
+  enemyAtkPerLv:0.3,
+  bossHpBase:15,
+  bossHpPerDist:2,
+  bossAtkBase:1,
+  bossAtkPerDist:0.4,
   bossHpMult:0.92,
   dropRate:0.30,
   chestRate:0.07,
   expNextBase:10,
   expNextScale:1.4,
   safeMobGap:5,
-  killHealMin:1,
-  killHealPct:0.15,
+  killHealMin:2,
+  killHealPct:0.25,
 };
 
 const BOSS_INTERVAL=50;
@@ -328,8 +328,8 @@ function makeEnemy(dist){
   const tier=Math.min(Math.floor(dist/10),ENEMY_NAMES.length-1);
   const nameIdx=R.nextInt(Math.max(0,tier-2),tier);
   const lvl=Math.max(1,dist+R.nextInt(-2,2));
-  const safeZone=BALANCE.safeMobGap*6;
-  const combatLv=1+Math.floor(Math.max(0,dist-safeZone)/12);
+  const safeZone=90;
+  const combatLv=1+Math.floor(Math.max(0,dist-safeZone)/15);
   const mult=1+Math.max(0,dist-safeZone)*BALANCE.enemyDistScale;
   const hpRaw=Math.floor((BALANCE.enemyHpBase+combatLv*BALANCE.enemyHpPerLv)*mult);
   const atk=Math.floor((BALANCE.enemyAtkBase+combatLv*BALANCE.enemyAtkPerLv)*mult);
