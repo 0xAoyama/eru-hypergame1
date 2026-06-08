@@ -293,7 +293,7 @@ function initGame(s){
     bonusAtk:0,bonusVit:0,bonusSpd:0,
     crit:5,lifesteal:0,poison:0,thorns:0,chestBonus:0,expBonus:0,regen:0,
     equips:[null,null,null,null,null],
-    kills:0,bossKills:0,guard:0,
+    kills:0,bossKills:0,
     combatTarget:null,combatTimer:0,moveTimer:0,regenTimer:0,
     floor:1,maxFloor:1,totalDistance:0,
     sp:0,
@@ -336,7 +336,7 @@ function makeEnemy(dist){
     hp:hpRaw,maxHp:hpRaw,
     atk:atk,int:Math.max(1,Math.floor(combatLv*0.4*mult)),
     vit:Math.max(1,Math.floor(combatLv*0.5*mult)),spd:Math.max(1,2+Math.floor(combatLv*0.2)),
-    luk:Math.max(1,Math.floor(1+combatLv*0.15)),guard:0,
+    luk:Math.max(1,Math.floor(1+combatLv*0.15)),
     exp:Math.floor(2+lvl+dist*0.2),isBoss:false,poisonDmg:0,
     power:Math.floor(atk+hpRaw*0.1)};
 }
@@ -350,7 +350,7 @@ function makeBoss(dist){
     hp:bHpRaw,maxHp:bHpRaw,
     atk:bAtk,int:Math.max(1,Math.floor(lvl*0.6)),
     vit:Math.max(1,Math.floor(lvl*0.8)),spd:Math.max(2,3+Math.floor(lvl*0.15)),
-    luk:Math.max(1,Math.floor(1+lvl*0.2)),guard:Math.floor(lvl*0.3),
+    luk:Math.max(1,Math.floor(1+lvl*0.2)),
     exp:Math.floor(10+dist*2),isBoss:true,poisonDmg:0,
     power:Math.floor(bAtk+bHpRaw*0.05)};
 }
@@ -358,10 +358,8 @@ function makeBoss(dist){
 function recalcStats(){
   player.bonusAtk=0;player.bonusVit=0;player.bonusSpd=0;
   player.crit=5;player.lifesteal=0;player.poison=0;player.thorns=0;player.chestBonus=0;player.expBonus=0;player.regen=0;
-  player.guard=0;
   for(const eq of player.equips){
     if(!eq)continue;
-    if(eq.slot===1)player.guard+=Math.floor(eq.ilvl*RARITY_MULT[eq.rarity]*0.5);
     for(const ench of eq.enchants){
       const def=ENCHANT_POOL.find(e=>e.id===ench.id);
       if(def)def.fn(ench.val,player);
@@ -376,7 +374,7 @@ function recalcStats(){
 function totalAtk(){return player.baseAtk+player.bonusAtk;}
 function totalVit(){return player.baseVit+player.bonusVit;}
 function totalSpd(){return player.baseSpd+player.bonusSpd;}
-function playerPower(){return totalAtk()+totalVit()*0.3+totalSpd()*0.2+player.guard*0.5;}
+function playerPower(){return totalAtk()+totalVit()*0.3+totalSpd()*0.2;}
 
 // ===== Equipment =====
 function makeEquip(dist,slotHint){
@@ -528,7 +526,7 @@ function update(dt){
       if(player.poison>0){en.poisonDmg+=player.poison;}
       if(en.poisonDmg>0){poisonDmg=Math.floor(en.poisonDmg*0.3);}
       const eVar=en.atk<=1?0:Math.max(1,Math.floor(en.atk*0.25));
-      let eDmg=Math.max(1,en.atk+R.nextInt(-eVar,eVar)-Math.floor(totalVit()*0.15)-Math.floor(player.guard*0.3));
+      let eDmg=Math.max(1,en.atk+R.nextInt(-eVar,eVar)-Math.floor(totalVit()*0.15));
       if(eDmg<1)eDmg=1;
       combatAnim.pendingHeroHit={dmg,critHit,poisonDmg,en,nextCell};
       combatAnim.heroDamageApplied=false;
@@ -1223,7 +1221,6 @@ function updateUI(){
     allocRow('ATK',totalAtk(),player.baseAtk,'atk')+
     allocRow('VIT',totalVit(),player.baseVit,'vit')+
     allocRow('SPD',totalSpd(),player.baseSpd,'spd')+
-    sRow('ガード',player.guard)+
     sRow('つよさ',Math.floor(playerPower()));
 
   const en=player.combatTarget;
@@ -1233,19 +1230,23 @@ function updateUI(){
     const eBar=document.getElementById('e-hp-bar');
     eBar.style.width=eHpPct+'%';
     eBar.className='hp-bar '+(en.isBoss?'boss':'enemy');
+    const eSpacer=hasSp?'<div class="sp-label">&nbsp;</div>':'';
     document.getElementById('e-stats').innerHTML=
       sRow('HP',Math.max(0,en.hp)+'/'+en.maxHp)+
+      eSpacer+
       sRow('ATK',en.atk)+
       sRow('VIT',en.vit)+sRow('SPD',en.spd)+
-      sRow('ガード',en.guard)+
       sRow('つよさ',en.power);
   } else {
+    const eSpacer=hasSp?'<div class="sp-label">&nbsp;</div>':'';
     document.getElementById('e-name').textContent='---';
     document.getElementById('e-hp-bar').style.width='0%';
     document.getElementById('e-stats').innerHTML=
-      sRow('HP','---')+sRow('ATK','---')+
+      sRow('HP','---')+
+      eSpacer+
+      sRow('ATK','---')+
       sRow('VIT','---')+sRow('SPD','---')+
-      sRow('ガード','---')+sRow('つよさ','---');
+      sRow('つよさ','---');
   }
 
   // Inventory
