@@ -175,7 +175,7 @@ const BALANCE={
   playerHpBase:8,         // Lv1 w/ baseVit=1 → 8+1*2=10
   playerHpPerVit:2,
   // Enemy scaling (low-number start)
-  enemyHpBase:8,          // base enemy HP constant
+  enemyHpBase:6,          // base enemy HP constant
   enemyHpPerLv:2,         // HP per enemy level
   enemyDistScale:0.018,   // multiplicative dist scaling
   enemyAtkBase:1,         // base enemy ATK
@@ -194,6 +194,9 @@ const BALANCE={
   expNextScale:1.4,
   // Refresh safety
   safeMobGap:5,           // min cells between player and nearest mob after refresh
+  // Kill heal (sustain for early chain fights)
+  killHealMin:1,
+  killHealPct:0.15,
 };
 
 const BOSS_INTERVAL=25;
@@ -335,8 +338,10 @@ function makeEnemy(dist){
   const tier=Math.min(Math.floor(dist/10),ENEMY_NAMES.length-1);
   const nameIdx=R.nextInt(Math.max(0,tier-2),tier);
   const lvl=Math.max(1,dist+R.nextInt(-2,2));
-  const combatLv=Math.max(1,Math.floor((dist-1)/5)+(dist>=BALANCE.safeMobGap*2?R.nextInt(0,1):0));
-  const mult=1+dist*BALANCE.enemyDistScale;
+  // Gentle early curve: combatLv stays 1 until past safeMobGap*6 (~30), then rises slowly
+  const safeZone=BALANCE.safeMobGap*6;
+  const combatLv=1+Math.floor(Math.max(0,dist-safeZone)/12);
+  const mult=1+Math.max(0,dist-safeZone)*BALANCE.enemyDistScale;
   const hpRaw=Math.floor((BALANCE.enemyHpBase+combatLv*BALANCE.enemyHpPerLv)*mult);
   const atk=Math.floor((BALANCE.enemyAtkBase+combatLv*BALANCE.enemyAtkPerLv)*mult);
   return{name:ENEMY_NAMES[nameIdx],lv:lvl,
@@ -520,8 +525,8 @@ function update(dt){
       let poisonDmg=0;
       if(player.poison>0){en.poisonDmg+=player.poison;}
       if(en.poisonDmg>0){poisonDmg=Math.floor(en.poisonDmg*0.3);}
-      // Pre-calculate counter damage
-      const eVar=Math.max(1,Math.floor(en.atk*0.3));
+      // Pre-calculate counter damage (stabilise variance at low ATK)
+      const eVar=en.atk<=1?0:Math.max(1,Math.floor(en.atk*0.25));
       let eDmg=Math.max(1,en.atk+R.nextInt(-eVar,eVar)-Math.floor(totalVit()*0.15)-Math.floor(player.guard*0.3));
       if(eDmg<1)eDmg=1;
       combatAnim.pendingHeroHit={dmg,critHit,poisonDmg,en,nextCell};
@@ -599,7 +604,7 @@ function applyEnemyCounterHit(){
   }
   // Check player death — start death animation instead of instant reset
   if(player.hp<=0&&!deathAnim.active){
-    deathAnim={active:true,type:'player',timer:0,duration:0.55,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
+    deathAnim={active:true,type:'player',timer:0,duration:1.0,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
     player.combatTarget=null;
     combatAnim.pendingHeroHit=null;combatAnim.pendingCounterHit=null;
     combatAnim.attackActive=false;combatAnim.counterActive=false;
@@ -612,6 +617,9 @@ function handleEnemyDefeat(en,nextCell){
   spawnParticle(defeatX,80,en.isBoss?'#f4f':'#f84',12);
   combatAnim.hitFlash=0.5;
   addLog(en.name+'をたおした！(+'+en.exp+'EXP)'+(en.isBoss?' 🏆':''),'combat');
+  // Kill heal — small HP recovery on defeat to sustain chain fights
+  const healAmt=Math.max(BALANCE.killHealMin,Math.floor(player.maxHp*BALANCE.killHealPct));
+  if(player.hp>0&&player.hp<player.maxHp){player.hp=Math.min(player.maxHp,player.hp+healAmt);}
   giveExp(en.exp);player.kills++;
   if(en.isBoss)player.bossKills++;
   const dropRate=BALANCE.dropRate+totalLuk()*0.005+player.chestBonus/100;
@@ -740,12 +748,22 @@ function updateVisualState(dt){
   if(deathAnim.active){
     deathAnim.timer+=dt;
     const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
-    if(!deathAnim.particlesSpawned&&dp>0.05){
-      deathAnim.particlesSpawned=true;
-      const dir=deathAnim.type==='enemy'?1:-1;
-      const bx=deathAnim.type==='enemy'?deathAnim.startX:(PLAYER_TILE_OFFSET*TILE_W+TILE_W/2);
-      for(let i=0;i<25&&particles.length<PARTICLE_MAX;i++){
-        particles.push({x:bx,y:80,vx:(Math.random()*4+1)*dir+(Math.random()-0.5)*2,vy:-Math.random()*5-2,life:0.5+Math.random()*0.5,maxLife:1,color:deathAnim.type==='enemy'?'#f84':'#4af',size:Math.random()*4+2});
+    if(!deathAnim.particlesSpawned){
+      const spawnAt=deathAnim.type==='enemy'?0.05:0.6; // player: spawn dust at ground impact
+      if(dp>spawnAt){
+        deathAnim.particlesSpawned=true;
+        if(deathAnim.type==='enemy'){
+          const bx=deathAnim.startX;
+          for(let i=0;i<25&&particles.length<PARTICLE_MAX;i++){
+            particles.push({x:bx,y:80,vx:(Math.random()*4+1)+(Math.random()-0.5)*2,vy:-Math.random()*5-2,life:0.5+Math.random()*0.5,maxLife:1,color:'#f84',size:Math.random()*4+2});
+          }
+        } else {
+          const bx=PLAYER_TILE_OFFSET*TILE_W+TILE_W/2;
+          const gy=(canvas.height/devicePixelRatio)*0.78;
+          for(let i=0;i<15&&particles.length<PARTICLE_MAX;i++){
+            particles.push({x:bx-8+Math.random()*16,y:gy,vx:(Math.random()-0.5)*3,vy:-Math.random()*2-0.5,life:0.3+Math.random()*0.3,maxLife:0.6,color:'#a89070',size:Math.random()*3+1});
+          }
+        }
       }
     }
     if(dp>=1){
@@ -1134,34 +1152,45 @@ function renderField(){
   const baseHeroY=groundY-22;
   const heroY=baseHeroY+hopY;
 
-  // Player death animation — fly upper-left with rotation/shrink
+  // Player death animation — stagger back then collapse to ground
   const playerDying=deathAnim.active&&deathAnim.type==='player';
   if(playerDying){
     const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
-    const flyOffX=-dp*TILE_W*3;
-    const flyOffY=-dp*70-Math.sin(dp*Math.PI)*50;
-    const rot=-dp*Math.PI*3.5;
-    const sc=Math.max(0,1-dp*1.1);
-    const alpha=Math.max(0,1-dp*1.3);
-    ctx.save();ctx.globalAlpha=alpha;
-    ctx.translate(heroX+flyOffX,heroY+flyOffY);ctx.rotate(rot);ctx.scale(sc,sc);
-    // Simplified hero body for death spin
+    // Phase 1 (0-0.3): stagger back with red flash
+    // Phase 2 (0.3-0.7): fall & rotate toward ground
+    // Phase 3 (0.7-1.0): lie on ground, blink
+    const staggerX=dp<0.3? -dp/0.3*8 : -8;
+    let fallRot=0, fallY=0;
+    if(dp>=0.3&&dp<0.7){
+      const fp=(dp-0.3)/0.4;
+      fallRot=fp*Math.PI*0.5; // rotate 90deg clockwise (fall forward-right)
+      fallY=fp*fp*(groundY-heroY-4); // accelerate toward ground
+    } else if(dp>=0.7){
+      fallRot=Math.PI*0.5;
+      fallY=groundY-heroY-4;
+    }
+    const blinkAlpha=dp>=0.7?(Math.sin((dp-0.7)/0.3*Math.PI*6)>0?1:0.3):1;
+    ctx.save();ctx.globalAlpha=blinkAlpha;
+    ctx.translate(heroX+staggerX,heroY+fallY);ctx.rotate(fallRot);
+    // Hero body (same as normal)
     ctx.fillStyle='#3070d0';ctx.fillRect(-5,-6,10,10);
     ctx.fillStyle='#e8c090';ctx.fillRect(-4,-12,8,7);
     ctx.fillStyle='#604020';ctx.fillRect(-4,-14,8,4);
     ctx.fillStyle='#404880';ctx.fillRect(-3,4,3,5);ctx.fillRect(1,4,3,5);
-    // White flash
-    ctx.fillStyle='rgba(255,100,100,'+Math.max(0,0.9-dp)+')';
-    ctx.fillRect(-7,-15,14,22);
+    // Red flash overlay during stagger
+    if(dp<0.35){
+      ctx.fillStyle='rgba(255,80,80,'+Math.max(0,0.8-dp*2.5)+')';
+      ctx.fillRect(-7,-15,14,22);
+    }
     ctx.restore();
     // "やられた!" text
     if(dp<0.6){
       ctx.save();ctx.globalAlpha=Math.max(0,1-dp/0.6);
       ctx.fillStyle='#f44';ctx.font='bold 13px monospace';
-      ctx.fillText('やられた！',heroX-30,heroY-25-dp*25);
+      ctx.fillText('やられた！',heroX-30,heroY-25-dp*20);
       ctx.restore();
     }
-    // Show HP=0 bar briefly
+    // Show HP=0 bar
     ctx.fillStyle='#030';ctx.fillRect(heroX-12,heroY-20,24,4);
     ctx.fillStyle='#f44';ctx.fillRect(heroX-12,heroY-20,0,4);
   } else {
