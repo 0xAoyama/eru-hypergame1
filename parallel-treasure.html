@@ -45,6 +45,7 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 .stat-alloc .sp-btn{background:none;border:1px solid #3a3d50;color:#667a9a;width:14px;height:14px;font-size:10px;font-family:inherit;cursor:pointer;padding:0;line-height:12px;text-align:center;}
 .stat-alloc .sp-btn:hover{border-color:#fa0;color:#fa0;}
 .stat-alloc .sp-btn.can-alloc{border-color:#fa0;color:#fa0;}
+.stat-alloc .sp-btn.sp-hidden{visibility:hidden;}
 .sp-label{font-size:9px;color:#fa0;font-weight:900;text-align:center;padding:1px 0;}
 
 /* Inventory panel */
@@ -1203,24 +1204,27 @@ function updateUI(){
   pBar.className='hp-bar player';
 
   const hasSp=player.sp>0;
-  const spInfo=hasSp?'<div class="sp-label">SP:'+player.sp+'</div>':'';
+  const spInfo='<div class="sp-label"'+(hasSp?'':' style="color:#223"')+'>SP:'+player.sp+'</div>';
 
   function allocRow(label,total,base,statKey){
     const bonus=total-base;
     const bonusTxt='<span class="stat-bonus">('+base+'+'+bonus+')</span>';
     const valHtml='<span class="stat-val">'+total+'</span>'+bonusTxt;
-    const btn=hasSp?'<div class="stat-alloc">'+valHtml+'<button class="sp-btn can-alloc" data-stat="'+statKey+'">+</button></div>':'<div class="stat-alloc">'+valHtml+'</div>';
-    return '<div class="stat-row"><span class="stat-key">'+label+'</span>'+btn+'</div>';
+    const btnCls=hasSp?'sp-btn can-alloc':'sp-btn sp-hidden';
+    return '<div class="stat-row"><span class="stat-key">'+label+'</span><div class="stat-alloc">'+valHtml+'<button class="'+btnCls+'" data-stat="'+statKey+'">+</button></div></div>';
+  }
+  function enemyStatRow(label,val){
+    return '<div class="stat-row"><span class="stat-key">'+label+'</span><div class="stat-alloc"><span class="stat-val">'+val+'</span><span class="sp-btn sp-hidden">&nbsp;</span></div></div>';
   }
 
   const ps=document.getElementById('p-stats');
   ps.innerHTML=
-    sRow('HP',player.hp+'/'+player.maxHp,hpPct<30)+
+    enemyStatRow('HP',player.hp+'/'+player.maxHp)+
     spInfo+
     allocRow('ATK',totalAtk(),player.baseAtk,'atk')+
     allocRow('VIT',totalVit(),player.baseVit,'vit')+
     allocRow('SPD',totalSpd(),player.baseSpd,'spd')+
-    sRow('つよさ',Math.floor(playerPower()));
+    enemyStatRow('つよさ',Math.floor(playerPower()));
 
   const en=player.combatTarget;
   if(en){
@@ -1229,23 +1233,21 @@ function updateUI(){
     const eBar=document.getElementById('e-hp-bar');
     eBar.style.width=eHpPct+'%';
     eBar.className='hp-bar '+(en.isBoss?'boss':'enemy');
-    const eSpacer=hasSp?'<div class="sp-label">&nbsp;</div>':'';
     document.getElementById('e-stats').innerHTML=
-      sRow('HP',Math.max(0,en.hp)+'/'+en.maxHp)+
-      eSpacer+
-      sRow('ATK',en.atk)+
-      sRow('VIT',en.vit)+sRow('SPD',en.spd)+
-      sRow('つよさ',en.power);
+      enemyStatRow('HP',Math.max(0,en.hp)+'/'+en.maxHp)+
+      spInfo+
+      enemyStatRow('ATK',en.atk)+
+      enemyStatRow('VIT',en.vit)+enemyStatRow('SPD',en.spd)+
+      enemyStatRow('つよさ',en.power);
   } else {
-    const eSpacer=hasSp?'<div class="sp-label">&nbsp;</div>':'';
     document.getElementById('e-name').textContent='---';
     document.getElementById('e-hp-bar').style.width='0%';
     document.getElementById('e-stats').innerHTML=
-      sRow('HP','---')+
-      eSpacer+
-      sRow('ATK','---')+
-      sRow('VIT','---')+sRow('SPD','---')+
-      sRow('つよさ','---');
+      enemyStatRow('HP','---')+
+      spInfo+
+      enemyStatRow('ATK','---')+
+      enemyStatRow('VIT','---')+enemyStatRow('SPD','---')+
+      enemyStatRow('つよさ','---');
   }
 
   // Inventory
