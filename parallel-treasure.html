@@ -10,25 +10,18 @@
 body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;overflow-y:auto;-webkit-font-smoothing:none;}
 #app{width:100%;max-width:420px;min-height:100vh;background:#0a0c1a;border-left:4px solid #e8e8e0;border-right:4px solid #e8e8e0;position:relative;display:flex;flex-direction:column;overflow:hidden;image-rendering:pixelated;}
 
-/* Top bar */
-#top-bar{background:#0d0f20;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #e8e8e0;flex-shrink:0;}
-#top-bar h1{font-size:13px;font-weight:900;color:#fa0;letter-spacing:2px;}
-#top-bar .controls{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
-#top-bar button,#top-bar select{background:#1a1d30;border:2px solid #3a3d50;color:#aab;padding:3px 7px;font-size:10px;font-family:inherit;cursor:pointer;}
-#top-bar button:hover,#top-bar select:hover{border-color:#fa0;color:#fff;}
-#top-bar button.active{border-color:#fa0;color:#fa0;}
-
 /* Field canvas */
 #field-wrap{position:relative;flex-shrink:0;border-bottom:3px solid #e8e8e0;}
 #field-canvas{display:block;width:100%;height:180px;background:#87CEEB;}
 
+/* Controls overlay on field */
+#field-controls{position:absolute;top:4px;right:4px;display:flex;gap:3px;align-items:center;z-index:10;}
+#field-controls button{background:rgba(20,24,48,0.75);border:2px solid #3a3d50;color:#aab;padding:2px 6px;font-size:10px;font-family:inherit;cursor:pointer;backdrop-filter:blur(2px);}
+#field-controls button:hover{border-color:#fa0;color:#fff;}
+#field-controls button.active{border-color:#fa0;color:#fa0;}
+
 /* Distance display */
 #dist-display{position:absolute;bottom:6px;right:8px;font-size:12px;font-weight:900;color:#fa0;text-shadow:1px 1px 0 #000,2px 2px 0 #000;}
-
-/* Ghost timelines */
-#ghost-bar{position:absolute;top:4px;left:4px;right:4px;display:flex;gap:2px;flex-direction:column;}
-.ghost-line{height:3px;background:rgba(100,120,180,0.15);border-radius:1px;position:relative;}
-.ghost-dot{position:absolute;width:5px;height:3px;background:rgba(100,180,255,0.3);border-radius:1px;top:0;}
 
 /* Status comparison panel */
 #status-panel{display:flex;gap:0;border-bottom:3px solid #e8e8e0;flex-shrink:0;}
@@ -46,6 +39,18 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 .hp-bar.enemy{background:#f44;}
 .hp-bar.boss{background:#f4f;}
 
+/* Stat allocation panel */
+#alloc-panel{border-bottom:3px solid #e8e8e0;padding:5px 8px;background:#0e1025;flex-shrink:0;}
+#alloc-panel .panel-title{font-size:9px;font-weight:900;color:#889;letter-spacing:2px;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;}
+#alloc-panel .panel-title .sp-count{color:#fa0;font-size:10px;letter-spacing:0;}
+#alloc-rows{display:flex;gap:3px;flex-wrap:wrap;}
+.alloc-btn{background:#161830;border:2px solid #2a2d40;color:#667a9a;padding:3px 0;font-size:10px;font-family:inherit;cursor:pointer;flex:1;min-width:55px;text-align:center;transition:border-color 0.15s,color 0.15s;}
+.alloc-btn:hover{border-color:#fa0;color:#fff;}
+.alloc-btn.has-points{border-color:#4a4d60;color:#aab;}
+.alloc-btn:active{background:#2a2d50;}
+.alloc-btn .alloc-stat{font-weight:900;color:#dde;font-size:11px;}
+.alloc-btn.has-points .alloc-stat{color:#fa0;}
+
 /* Equip panel */
 #equip-panel{border-bottom:3px solid #e8e8e0;padding:6px 8px;background:#0e1025;flex-shrink:0;}
 #equip-panel .panel-title{font-size:9px;font-weight:900;color:#889;letter-spacing:2px;margin-bottom:4px;}
@@ -60,9 +65,9 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 /* Last drop */
 #drop-banner{background:#1a1530;border-bottom:2px solid #e8e8e0;padding:4px 8px;font-size:10px;color:#889;flex-shrink:0;min-height:24px;}
 
-/* LOG — the heart of the game */
-#log-panel{flex:1;overflow-y:auto;padding:4px 8px;background:#0a0c1a;display:flex;flex-direction:column;min-height:200px;}
-#log-panel .log-entry{padding:2px 0;font-size:10px;line-height:1.5;color:#556a80;}
+/* LOG — compact 4 lines */
+#log-panel{overflow:hidden;padding:4px 8px;background:#0a0c1a;flex-shrink:0;border-bottom:2px solid #e8e8e0;}
+#log-panel .log-entry{padding:1px 0;font-size:10px;line-height:1.4;color:#556a80;}
 #log-panel .log-entry.combat{color:#f88;}
 #log-panel .log-entry.loot{color:#fa0;}
 #log-panel .log-entry.levelup{color:#4f4;}
@@ -70,10 +75,12 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 #log-panel .log-entry.equip{color:#4af;}
 #log-panel .log-entry.drop-stat{color:#fc6;}
 
-/* Seed footer */
-#seed-footer{font-size:9px;color:#334;text-align:center;padding:4px;background:#080a16;border-top:2px solid #e8e8e0;flex-shrink:0;}
+/* Footer — seed + title + info */
+#seed-footer{font-size:9px;color:#556;text-align:center;padding:4px 8px;background:#080a16;border-top:2px solid #e8e8e0;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;}
+#seed-footer .title{color:#fa0;font-weight:900;letter-spacing:1px;}
+#seed-footer .seed-info{color:#334;}
 
-/* Vignette overlay — weakened so field stays bright */
+/* Vignette overlay */
 #app::after{content:'';position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;
   background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.3) 100%);z-index:100;}
 
@@ -90,16 +97,9 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 <body>
 
 <div id="app">
-  <div id="top-bar">
-    <h1>PARALLEL TREASURE</h1>
-    <div class="controls">
-      <select id="strat-select" title="ステ振り方針">
-        <option value="balanced">Bal</option>
-        <option value="power">ATK</option>
-        <option value="treasure">LUK</option>
-        <option value="survival">VIT</option>
-        <option value="speed">SPD</option>
-      </select>
+  <div id="field-wrap">
+    <canvas id="field-canvas"></canvas>
+    <div id="field-controls">
       <button id="btn-slow">×½</button>
       <button id="btn-normal" class="active">×1</button>
       <button id="btn-fast">×3</button>
@@ -108,16 +108,7 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
       <button id="btn-reset">↺</button>
       <button id="btn-newseed">🎲</button>
     </div>
-  </div>
-
-  <div id="field-wrap">
-    <canvas id="field-canvas"></canvas>
     <div id="dist-display">0km</div>
-    <div id="ghost-bar">
-      <div class="ghost-line"><div class="ghost-dot" id="g0"></div></div>
-      <div class="ghost-line"><div class="ghost-dot" id="g1"></div></div>
-      <div class="ghost-line"><div class="ghost-dot" id="g2"></div></div>
-    </div>
   </div>
 
   <div id="status-panel">
@@ -135,6 +126,11 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
     </div>
   </div>
 
+  <div id="alloc-panel">
+    <div class="panel-title"><span>◆ ステふり</span><span class="sp-count" id="sp-display">SP: 0</span></div>
+    <div id="alloc-rows"></div>
+  </div>
+
   <div id="equip-panel">
     <div class="panel-title">◆ そうび</div>
     <div id="equip-slots"></div>
@@ -144,7 +140,10 @@ body{background:#000;color:#ccc;font-family:'DotFont','Courier New',monospace;di
 
   <div id="log-panel"></div>
 
-  <div id="seed-footer">SEED: ---</div>
+  <div id="seed-footer">
+    <span class="title">PARALLEL TREASURE</span>
+    <span class="seed-info" id="seed-text">SEED: ---</span>
+  </div>
 </div>
 
 <script>
@@ -165,36 +164,28 @@ function getSeed(){
 
 // ===== Balance constants =====
 const BALANCE={
-  // Combat tempo (1.5x speed maintained)
   attackDuration:0.30,
   counterDuration:0.20,
   atkIntervalBase:0.80,
   atkIntervalMin:0.10,
   atkIntervalSpdScale:0.03,
-  // Player HP formula: playerHpBase + totalVit * playerHpPerVit
-  playerHpBase:8,         // Lv1 w/ baseVit=1 → 8+1*2=10
+  playerHpBase:8,
   playerHpPerVit:2,
-  // Enemy scaling (low-number start)
-  enemyHpBase:6,          // base enemy HP constant
-  enemyHpPerLv:2,         // HP per enemy level
-  enemyDistScale:0.018,   // multiplicative dist scaling
-  enemyAtkBase:1,         // base enemy ATK
-  enemyAtkPerLv:0.5,      // ATK per enemy level
-  // Boss scaling
+  enemyHpBase:6,
+  enemyHpPerLv:2,
+  enemyDistScale:0.018,
+  enemyAtkBase:1,
+  enemyAtkPerLv:0.5,
   bossHpBase:20,
   bossHpPerDist:4,
   bossAtkBase:2,
   bossAtkPerDist:0.8,
   bossHpMult:0.92,
-  // Drops & rewards
   dropRate:0.30,
   chestRate:0.07,
-  // EXP / levelling
   expNextBase:10,
   expNextScale:1.4,
-  // Refresh safety
-  safeMobGap:5,           // min cells between player and nearest mob after refresh
-  // Kill heal (sustain for early chain fights)
+  safeMobGap:5,
   killHealMin:1,
   killHealPct:0.15,
 };
@@ -232,13 +223,11 @@ const EQUIP_NAME_POOL=[WEAPON_NAMES,SHIELD_NAMES,ARMOR_NAMES,RING_NAMES,PET_NAME
 
 // ===== Tile-based visual constants =====
 const TILE_W=36;
-const PLAYER_TILE_OFFSET=3; // player is shown at tile index 3 from left
+const PLAYER_TILE_OFFSET=3;
 
 // ===== Game state =====
-let R,seed,player,cells,gameTime,eventLog,lastDrop,paused,speedMult,strategy;
+let R,seed,player,cells,gameTime,eventLog,lastDrop,paused,speedMult;
 let canvas,ctx,sidebarDirty;
-// Ghost parallel world positions
-let ghosts=[{pos:0},{pos:0},{pos:0}];
 
 // Visual state for tile-based hop movement
 let visualCell=0, hopProgress=0, lastCell=0, hopping=false;
@@ -247,12 +236,10 @@ let deathAnim={active:false,type:'none',timer:0,duration:0.6,startX:0,startY:0,e
 let currentCombatDist=0;
 const PARTICLE_MAX=250;
 let particles=[], floaters=[];
-// Per-cell decoration seeds (deterministic from cell index)
 let cellDecoCache={};
 
 function getCellDeco(cellIdx){
   if(cellDecoCache[cellIdx])return cellDecoCache[cellIdx];
-  // Simple hash from cellIdx for deterministic deco
   let h=(cellIdx*2654435761)>>>0;
   const type=(h%100);
   let deco='none';
@@ -293,9 +280,8 @@ function clearNearbyMobs(fromCell){
 
 function initGame(s){
   seed=s;R=makeRNG(seed);
-  document.getElementById('seed-footer').textContent='SEED: '+seed;
-  paused=false;speedMult=1;strategy='balanced';
-  document.getElementById('strat-select').value='balanced';
+  document.getElementById('seed-text').textContent='SEED: '+seed;
+  paused=false;speedMult=1;
   gameTime=0;eventLog=[];lastDrop=null;
   player={
     cell:0,lv:1,exp:0,expNext:10,
@@ -307,11 +293,11 @@ function initGame(s){
     kills:0,bossKills:0,guard:0,
     combatTarget:null,combatTimer:0,moveTimer:0,regenTimer:0,
     floor:1,maxFloor:1,totalDistance:0,
+    sp:0, // stat points to allocate
   };
   recalcStats();player.hp=player.maxHp;
   cells=[];generateCells(0,80);
   clearNearbyMobs(player.cell);
-  ghosts=[{pos:0,speed:0.9+R.next()*0.4},{pos:0,speed:0.8+R.next()*0.5},{pos:0,speed:0.7+R.next()*0.6}];
   visualCell=0;hopProgress=0;lastCell=0;hopping=false;
   combatAnim={hitFlash:0,heroHitFlash:0,heroLungeX:0,heroHopY:0,enemyLungeX:0,enemyHopY:0,contactSpark:0,impactX:0,impactY:0,attackActive:false,attackTimer:0,attackDuration:BALANCE.attackDuration,counterActive:false,counterTimer:0,counterDuration:BALANCE.counterDuration,heroKnockX:0,pendingHeroHit:null,heroDamageApplied:false,pendingCounterHit:null,counterDamageApplied:false};
   deathAnim={active:false,type:'none',timer:0,duration:0.6,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
@@ -338,7 +324,6 @@ function makeEnemy(dist){
   const tier=Math.min(Math.floor(dist/10),ENEMY_NAMES.length-1);
   const nameIdx=R.nextInt(Math.max(0,tier-2),tier);
   const lvl=Math.max(1,dist+R.nextInt(-2,2));
-  // Gentle early curve: combatLv stays 1 until past safeMobGap*6 (~30), then rises slowly
   const safeZone=BALANCE.safeMobGap*6;
   const combatLv=1+Math.floor(Math.max(0,dist-safeZone)/12);
   const mult=1+Math.max(0,dist-safeZone)*BALANCE.enemyDistScale;
@@ -438,26 +423,20 @@ function giveExp(amount){
   while(player.exp>=player.expNext){
     player.exp-=player.expNext;player.lv++;
     player.expNext=Math.floor(BALANCE.expNextBase+player.lv*player.lv*BALANCE.expNextScale);
-    doStatAlloc();player.hp=player.maxHp;
-    addLog('★ レベルアップ！ ➜ Lv'+player.lv,'levelup');
+    player.sp+=3;
+    player.hp=player.maxHp;
+    addLog('★ レベルアップ！ ➜ Lv'+player.lv+' (SP+3)','levelup');
+    sidebarDirty=true;
   }
 }
-function doStatAlloc(){
-  const pts=3;
-  for(let i=0;i<pts;i++){
-    switch(strategy){
-      case'power':allocStat(['atk','atk','atk','spd'][R.nextInt(0,3)]);break;
-      case'treasure':allocStat(['luk','luk','luk','spd'][R.nextInt(0,3)]);break;
-      case'survival':allocStat(['vit','vit','int','vit'][R.nextInt(0,3)]);break;
-      case'speed':allocStat(['spd','spd','atk','spd'][R.nextInt(0,3)]);break;
-      default:allocStat(['atk','vit','spd','luk','int'][R.nextInt(0,4)]);break;
-    }
-  }
-  recalcStats();
-}
+
 function allocStat(s){
+  if(player.sp<=0)return;
+  player.sp--;
   switch(s){case'atk':player.baseAtk++;break;case'int':player.baseInt++;break;
     case'vit':player.baseVit++;break;case'spd':player.baseSpd++;break;case'luk':player.baseLuk++;break;}
+  recalcStats();
+  sidebarDirty=true;
 }
 
 // ===== Event Log =====
@@ -474,8 +453,6 @@ function update(dt){
 
   if(player.cell+30>=cells.length)generateCells(cells.length,60);
 
-  const myCell=cells[player.cell];
-
   // Regen
   player.regenTimer+=sDt;
   if(player.regenTimer>=1){
@@ -487,11 +464,7 @@ function update(dt){
     }
   }
 
-  // Ghost parallel worlds
-  for(const g of ghosts){g.pos+=(sDt*g.speed*(0.8+Math.sin(gameTime*0.3+g.speed)*0.3));}
-
   // Check cell+2 for enemy (combat distance 2 = 1マス空け)
-  // If enemy at +1 (safety), clear it so combat is always at distance 2
   const cellAt1=cells[player.cell+1];
   if(cellAt1&&cellAt1.enemy&&cellAt1.enemy.hp>0){cellAt1.enemy=null;cellAt1.type='empty';}
   const cellAt2=cells[player.cell+2];
@@ -500,16 +473,14 @@ function update(dt){
   const nextHasEnemy=has2&&!deathAnim.active;
   currentCombatDist=2;
 
-  // Combat: fight enemy while staying in current cell
+  // Combat
   if(nextHasEnemy){
-    // Reset combatTimer when switching to a new target
     if(player.combatTarget!==nextCell.enemy){
       player.combatTimer=0;
       combatAnim.pendingHeroHit=null;combatAnim.heroDamageApplied=false;
       combatAnim.pendingCounterHit=null;combatAnim.counterDamageApplied=false;
     }
     player.combatTarget=nextCell.enemy;
-    // Only advance timer when no attack/counter anim is playing
     if(!combatAnim.attackActive&&!combatAnim.counterActive){
       player.combatTimer+=sDt;
     }
@@ -517,7 +488,6 @@ function update(dt){
     if(player.combatTimer>=atkInterval&&!combatAnim.attackActive&&!combatAnim.counterActive){
       player.combatTimer-=atkInterval;
       const en=nextCell.enemy;
-      // Calculate hero damage and store as pending
       const atkVar=Math.max(1,Math.floor(totalAtk()*0.3));
       let dmg=Math.max(1,totalAtk()+R.nextInt(-atkVar,atkVar));
       let critHit=false;
@@ -525,7 +495,6 @@ function update(dt){
       let poisonDmg=0;
       if(player.poison>0){en.poisonDmg+=player.poison;}
       if(en.poisonDmg>0){poisonDmg=Math.floor(en.poisonDmg*0.3);}
-      // Pre-calculate counter damage (stabilise variance at low ATK)
       const eVar=en.atk<=1?0:Math.max(1,Math.floor(en.atk*0.25));
       let eDmg=Math.max(1,en.atk+R.nextInt(-eVar,eVar)-Math.floor(totalVit()*0.15)-Math.floor(player.guard*0.3));
       if(eDmg<1)eDmg=1;
@@ -533,7 +502,6 @@ function update(dt){
       combatAnim.heroDamageApplied=false;
       combatAnim.pendingCounterHit={eDmg,en,nextCell};
       combatAnim.counterDamageApplied=false;
-      // Trigger one-shot attack animation (damage applied at contact in updateVisualState)
       combatAnim.attackActive=true;combatAnim.attackTimer=0;
     }
   } else {
@@ -541,14 +509,13 @@ function update(dt){
     player.combatTimer=0;
     combatAnim.pendingHeroHit=null;combatAnim.heroDamageApplied=false;
     combatAnim.pendingCounterHit=null;combatAnim.counterDamageApplied=false;
-    if(deathAnim.active){sidebarDirty=true;return;} // freeze during death anim
+    if(deathAnim.active){sidebarDirty=true;return;}
     player.moveTimer+=sDt;
     const moveInterval=Math.max(0.1,0.5-totalSpd()*0.008);
     if(player.moveTimer>=moveInterval){
       player.moveTimer-=moveInterval;player.cell++;player.totalDistance++;
       player.floor=Math.floor(player.cell/BOSS_INTERVAL)+1;
       if(player.floor>player.maxFloor)player.maxFloor=player.floor;
-      // Start hop animation
       lastCell=player.cell-1;
       hopping=true;
       hopProgress=0;
@@ -565,8 +532,6 @@ function update(dt){
 }
 
 // ===== Render field canvas =====
-let prevEnemyHp={};
-
 function applyHeroHit(){
   const h=combatAnim.pendingHeroHit;if(!h||combatAnim.heroDamageApplied)return;
   combatAnim.heroDamageApplied=true;
@@ -574,7 +539,6 @@ function applyHeroHit(){
   en.hp-=h.dmg;
   if(h.poisonDmg>0){en.hp-=h.poisonDmg;en.poisonDmg=Math.max(0,en.poisonDmg-h.poisonDmg*0.5);}
   if(player.lifesteal>0)player.hp=Math.min(player.maxHp,player.hp+Math.floor(h.dmg*player.lifesteal/100));
-  // Floater/particles for enemy damage
   const contactX=(PLAYER_TILE_OFFSET+currentCombatDist)*TILE_W+TILE_W*0.1;
   const totalDmg=h.dmg+h.poisonDmg;
   spawnFloater(contactX+Math.random()*10-5,60+Math.random()*10,'-'+totalDmg,h.critHit?'#f4f':'#ff4');
@@ -590,19 +554,15 @@ function applyEnemyCounterHit(){
   combatAnim.counterDamageApplied=true;
   const en=c.en;
   player.hp-=c.eDmg;
-  // Thorns
   if(player.thorns>0){
     const thornsDmg=Math.floor(c.eDmg*player.thorns/100);
     en.hp-=thornsDmg;
   }
-  // Floater for player damage
   const contactX=PLAYER_TILE_OFFSET*TILE_W+TILE_W/2;
   spawnFloater(contactX+Math.random()*10-5,50+Math.random()*10,'-'+c.eDmg,'#fa4');
-  // Check thorns kill
   if(en.hp<=0){
     handleEnemyDefeat(en,c.nextCell);
   }
-  // Check player death — start death animation instead of instant reset
   if(player.hp<=0&&!deathAnim.active){
     deathAnim={active:true,type:'player',timer:0,duration:1.0,startX:0,startY:0,entity:null,cellRef:null,particlesSpawned:false};
     player.combatTarget=null;
@@ -612,12 +572,11 @@ function applyEnemyCounterHit(){
 }
 
 function handleEnemyDefeat(en,nextCell){
-  if(deathAnim.active)return; // prevent double death
+  if(deathAnim.active)return;
   const defeatX=(PLAYER_TILE_OFFSET+currentCombatDist)*TILE_W+TILE_W/2;
   spawnParticle(defeatX,80,en.isBoss?'#f4f':'#f84',12);
   combatAnim.hitFlash=0.5;
   addLog(en.name+'をたおした！(+'+en.exp+'EXP)'+(en.isBoss?' 🏆':''),'combat');
-  // Kill heal — small HP recovery on defeat to sustain chain fights
   const healAmt=Math.max(BALANCE.killHealMin,Math.floor(player.maxHp*BALANCE.killHealPct));
   if(player.hp>0&&player.hp<player.maxHp){player.hp=Math.min(player.maxHp,player.hp+healAmt);}
   giveExp(en.exp);player.kills++;
@@ -632,7 +591,6 @@ function handleEnemyDefeat(en,nextCell){
     if(R.chance(0.3))addLog(en.name+'が'+gem+'をドロップ！('+statGain+'+1)','drop-stat');
     tryEquip(eq);
   }
-  // Start death animation — visual clear deferred, loot already processed
   deathAnim={active:true,type:'enemy',timer:0,duration:0.6,startX:defeatX,startY:60,entity:en,cellRef:nextCell,particlesSpawned:false,dist:currentCombatDist};
   player.combatTarget=null;
   combatAnim.pendingCounterHit=null;combatAnim.pendingHeroHit=null;
@@ -643,15 +601,13 @@ function updateVisualState(dt){
   const sDt=dt*speedMult;
   const inCombat=!!(player.combatTarget&&player.combatTarget.hp>0);
 
-  // Hop animation: advance hopProgress 0→1
   if(hopping&&!paused){
-    const hopSpeed=Math.max(4,8+speedMult*2); // faster hop at higher speeds
+    const hopSpeed=Math.max(4,8+speedMult*2);
     hopProgress+=dt*hopSpeed;
     if(hopProgress>=1){
       hopProgress=0;
       hopping=false;
       visualCell=player.cell;
-      // Spawn dust puff at landing
       const W=canvas.width/devicePixelRatio;
       const groundY=(canvas.height/devicePixelRatio)*0.78;
       const px=PLAYER_TILE_OFFSET*TILE_W+TILE_W/2;
@@ -662,7 +618,7 @@ function updateVisualState(dt){
     visualCell=player.cell;
   }
 
-  // Attack animation — one-shot cycle triggered by attack tick only
+  // Attack animation
   if(combatAnim.attackActive){
     combatAnim.attackTimer+=dt;
     const dur=combatAnim.attackDuration;
@@ -694,13 +650,11 @@ function updateVisualState(dt){
       combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
       combatAnim.enemyLungeX=0;combatAnim.enemyHopY=0;
       combatAnim.contactSpark=0;
-      // Start enemy counter-attack only if enemy survived hero hit
       if(inCombat&&combatAnim.pendingCounterHit&&combatAnim.pendingCounterHit.en.hp>0){
         combatAnim.counterActive=true;combatAnim.counterTimer=0;
       }
     }
   } else if(combatAnim.counterActive){
-    // Enemy counter-attack: hop left toward hero, hit, return
     combatAnim.counterTimer+=dt;
     const dur=combatAnim.counterDuration;
     const p=Math.min(combatAnim.counterTimer/dur,1);
@@ -708,7 +662,7 @@ function updateVisualState(dt){
     if(p<0.35){
       const t=p/0.35;
       const arcY=hopArcY(t*0.85)*(currentCombatDist>=2?0.8:0.5);
-      combatAnim.enemyLungeX=-reach*t; // lunge LEFT toward hero
+      combatAnim.enemyLungeX=-reach*t;
       combatAnim.enemyHopY=arcY;
       combatAnim.heroLungeX=0;combatAnim.heroHopY=0;
     } else if(p<0.50){
@@ -733,7 +687,6 @@ function updateVisualState(dt){
       combatAnim.heroKnockX=0;combatAnim.contactSpark=0;
     }
   } else {
-    // Idle — decay any residual values
     combatAnim.heroLungeX*=0.8;combatAnim.enemyLungeX*=0.8;
     combatAnim.heroHopY*=0.8;combatAnim.enemyHopY*=0.8;
     combatAnim.heroKnockX*=0.8;
@@ -742,14 +695,12 @@ function updateVisualState(dt){
   combatAnim.hitFlash=Math.max(0,combatAnim.hitFlash-dt*2);
   combatAnim.heroHitFlash=Math.max(0,combatAnim.heroHitFlash-dt*2);
 
-  // (damage floaters are now spawned directly in applyHeroHit/applyEnemyCounterHit)
-
   // Death animation update
   if(deathAnim.active){
     deathAnim.timer+=dt;
     const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
     if(!deathAnim.particlesSpawned){
-      const spawnAt=deathAnim.type==='enemy'?0.05:0.6; // player: spawn dust at ground impact
+      const spawnAt=deathAnim.type==='enemy'?0.05:0.6;
       if(dp>spawnAt){
         deathAnim.particlesSpawned=true;
         if(deathAnim.type==='enemy'){
@@ -794,7 +745,6 @@ function updateVisualState(dt){
 
 // ===== Hop arc easing =====
 function hopArcY(t){
-  // parabolic arc: peak at t=0.4, lands at t=1 with slight squash
   const peak=0.4;
   if(t<peak){
     const p=t/peak;
@@ -806,7 +756,6 @@ function hopArcY(t){
 }
 
 function hopSquash(t){
-  // Slight squash on landing (t near 1)
   if(t>0.85) return 1+Math.sin((t-0.85)/0.15*Math.PI)*0.15;
   return 1;
 }
@@ -817,20 +766,18 @@ function renderField(){
   ctx.clearRect(0,0,W,H);
 
   const groundY=H*0.78;
-
-  // Camera cell: the cell at the left edge of the screen
   const hopFrac=hopping?hopProgress:0;
   const smoothCell=visualCell+hopFrac;
   const cameraCell=smoothCell-PLAYER_TILE_OFFSET;
 
-  // === Bright sky gradient ===
+  // === Sky ===
   const skyGrad=ctx.createLinearGradient(0,0,0,groundY);
   skyGrad.addColorStop(0,'#5BACEE');
   skyGrad.addColorStop(0.5,'#7EC8F0');
   skyGrad.addColorStop(1,'#B8E4F8');
   ctx.fillStyle=skyGrad;ctx.fillRect(0,0,W,groundY);
 
-  // === White clouds (slow parallax) ===
+  // === Clouds ===
   const cloudScroll=cameraCell*TILE_W*0.03;
   ctx.fillStyle='rgba(255,255,255,0.7)';
   for(let i=0;i<6;i++){
@@ -843,7 +790,7 @@ function renderField(){
     ctx.ellipse(cx+cw*0.3,cy-5,cw*0.6,8+i%2*4,0,0,Math.PI*2);ctx.fill();
   }
 
-  // === Far mountains (bright, slow parallax) ===
+  // === Mountains ===
   const mtScroll=cameraCell*TILE_W*0.08;
   ctx.fillStyle='#8BA8C8';
   ctx.beginPath();ctx.moveTo(0,groundY);
@@ -854,7 +801,6 @@ function renderField(){
   }
   ctx.lineTo(W,groundY);ctx.closePath();ctx.fill();
 
-  // Snow caps
   ctx.fillStyle='#E8F0F8';
   ctx.beginPath();ctx.moveTo(0,groundY);
   for(let x=0;x<=W;x+=3){
@@ -864,7 +810,6 @@ function renderField(){
     ctx.lineTo(x,peak+8);
   }
   ctx.lineTo(W,groundY);ctx.closePath();ctx.fill();
-  // Redraw main mountain on top of snow
   ctx.fillStyle='#8BA8C8';
   ctx.beginPath();ctx.moveTo(0,groundY);
   for(let x=0;x<=W;x+=3){
@@ -875,7 +820,7 @@ function renderField(){
   }
   ctx.lineTo(W,groundY);ctx.closePath();ctx.fill();
 
-  // === Mid green hills (medium parallax) ===
+  // === Hills ===
   const hillScroll=cameraCell*TILE_W*0.2;
   ctx.fillStyle='#6AAF50';
   ctx.beginPath();ctx.moveTo(0,groundY);
@@ -886,7 +831,6 @@ function renderField(){
   }
   ctx.lineTo(W,groundY);ctx.closePath();ctx.fill();
 
-  // Lighter hill layer
   ctx.fillStyle='#7CC060';
   ctx.beginPath();ctx.moveTo(0,groundY);
   for(let x=0;x<=W;x+=3){
@@ -896,32 +840,28 @@ function renderField(){
   }
   ctx.lineTo(W,groundY);ctx.closePath();ctx.fill();
 
-  // === Ground (bright grass/dirt) ===
+  // === Ground ===
   const gndGrad=ctx.createLinearGradient(0,groundY,0,H);
   gndGrad.addColorStop(0,'#8BC060');
   gndGrad.addColorStop(0.3,'#7AAA50');
   gndGrad.addColorStop(1,'#6A8840');
   ctx.fillStyle=gndGrad;ctx.fillRect(0,groundY,W,H-groundY);
 
-  // Dirt path
   ctx.fillStyle='#C4A060';
   ctx.fillRect(0,groundY+2,W,10);
   ctx.fillStyle='#B89050';
   ctx.fillRect(0,groundY+5,W,4);
 
-  // === Tile grid lines on ground ===
-  const tileOffset=cameraCell*TILE_W;
+  // === Tile grid ===
   const firstTile=Math.floor(cameraCell);
   const tilePx=-(cameraCell-firstTile)*TILE_W;
 
-  // Draw tile borders
   ctx.strokeStyle='rgba(0,0,0,0.12)';ctx.lineWidth=1;
   for(let i=-1;i<=Math.ceil(W/TILE_W)+1;i++){
     const tx=tilePx+i*TILE_W;
     ctx.beginPath();ctx.moveTo(tx,groundY);ctx.lineTo(tx,H);ctx.stroke();
   }
 
-  // Tile numbers (subtle)
   ctx.fillStyle='rgba(80,60,30,0.25)';ctx.font='7px monospace';
   for(let i=-1;i<=Math.ceil(W/TILE_W)+1;i++){
     const cellIdx=firstTile+i;
@@ -931,15 +871,14 @@ function renderField(){
     }
   }
 
-  // === Draw cell contents (decorations, enemies, chests) ===
+  // === Cell contents ===
   for(let i=-2;i<=Math.ceil(W/TILE_W)+2;i++){
     const cellIdx=firstTile+i;
     if(cellIdx<0)continue;
     const tx=tilePx+i*TILE_W;
     if(tx<-TILE_W||tx>W+TILE_W)continue;
-    const cx=tx+TILE_W/2; // center x of this tile
+    const cx=tx+TILE_W/2;
 
-    // Cell decoration
     const deco=getCellDeco(cellIdx);
     if(deco.deco!=='none'){
       ctx.save();
@@ -986,7 +925,6 @@ function renderField(){
       ctx.restore();
     }
 
-    // Cell content (enemy/chest)
     const cell=cells[cellIdx];
     if(!cell)continue;
 
@@ -1024,21 +962,7 @@ function renderField(){
     }
   }
 
-  // === Ghost runners ===
-  for(let gi=0;gi<3;gi++){
-    const ghostCell=ghosts[gi].pos;
-    const gx=tilePx+(ghostCell-firstTile)*TILE_W+TILE_W/2;
-    if(gx<-20||gx>W+20)continue;
-    const gy=groundY-6;
-    ctx.globalAlpha=0.15;
-    ctx.fillStyle=['#4af','#a4f','#4fa'][gi];
-    const bob2=Math.sin(gameTime*6+gi*2)*2;
-    ctx.fillRect(gx-2,gy-10+bob2,4,8);
-    ctx.fillRect(gx-1,gy-12+bob2,2,3);
-    ctx.globalAlpha=1;
-  }
-
-  // === Current enemy (combat, next tile right of player) ===
+  // === Current enemy (combat) ===
   const inCombat=!!(player.combatTarget&&player.combatTarget.hp>0);
   const playerTileX=tilePx+(player.cell-firstTile)*TILE_W;
   const px=playerTileX+TILE_W/2;
@@ -1049,13 +973,11 @@ function renderField(){
     const ex=enemyBaseX+combatAnim.enemyLungeX;
     const ey=groundY-20+combatAnim.enemyHopY;
     const sz=en.isBoss?16:12;
-    const enemySquash=Math.abs(combatAnim.enemyHopY)>1?1:1;
+    const enemySquash=1;
 
-    // Enemy shadow
     ctx.fillStyle='rgba(0,0,0,0.15)';
     ctx.beginPath();ctx.ellipse(ex,groundY,7-Math.abs(combatAnim.enemyHopY)*0.15,2.5,0,0,Math.PI*2);ctx.fill();
 
-    // Enemy body with squash
     ctx.save();
     ctx.translate(ex,ey+6);ctx.scale(1+(enemySquash-1)*0.5,1/enemySquash);ctx.translate(-ex,-(ey+6));
 
@@ -1082,13 +1004,11 @@ function renderField(){
     ctx.fillStyle='#333';ctx.font='bold 8px monospace';
     ctx.fillText(en.name,ex-14,ey-sz-12);
 
-    // Contact spark / bump star at collision point
     if(combatAnim.contactSpark>0.3){
       const sparkX=(px+combatAnim.heroLungeX+ex)/2;
       const sparkY=groundY-16;
       const sparkAlpha=combatAnim.contactSpark;
       ctx.save();ctx.globalAlpha=sparkAlpha;
-      // Star burst
       ctx.strokeStyle='#ffe040';ctx.lineWidth=2;
       const rays=5;const sparkR=6*sparkAlpha;
       for(let r=0;r<rays;r++){
@@ -1098,19 +1018,17 @@ function renderField(){
         ctx.lineTo(sparkX+Math.cos(angle)*sparkR,sparkY+Math.sin(angle)*sparkR);
         ctx.stroke();
       }
-      // Puff circle
       ctx.fillStyle='rgba(255,240,200,'+sparkAlpha*0.5+')';
       ctx.beginPath();ctx.arc(sparkX,sparkY,4*sparkAlpha,0,Math.PI*2);ctx.fill();
       ctx.restore();
     }
   }
 
-  // === Death animation (enemy flying away) ===
+  // === Death animation (enemy) ===
   if(deathAnim.active&&deathAnim.type==='enemy'&&deathAnim.entity){
     const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
     const den=deathAnim.entity;
     const dsz=den.isBoss?16:12;
-    // Fly upper-right with rotation and shrink
     const flyX=deathAnim.startX+dp*TILE_W*2.5;
     const flyY=deathAnim.startY-dp*80-Math.sin(dp*Math.PI)*40;
     const rot=dp*Math.PI*3;
@@ -1121,11 +1039,9 @@ function renderField(){
     ctx.fillStyle=den.isBoss?'#8020a0':'#a03030';
     ctx.fillRect(-dsz/2,-dsz/2,dsz,dsz);
     ctx.fillStyle='#f44';ctx.fillRect(-3,-dsz/2+3,2,2);ctx.fillRect(2,-dsz/2+3,2,2);
-    // Flash overlay
     ctx.fillStyle='rgba(255,255,200,'+Math.max(0,0.8-dp)+')';
     ctx.fillRect(-dsz/2-1,-dsz/2-1,dsz+2,dsz+2);
     ctx.restore();
-    // DEFEAT text
     if(dp<0.7){
       ctx.save();ctx.globalAlpha=Math.max(0,1-dp/0.7);
       ctx.fillStyle='#ff4';ctx.font='bold 14px monospace';
@@ -1134,7 +1050,7 @@ function renderField(){
     }
   }
 
-  // === Player character with hop animation ===
+  // === Player character ===
   let heroX=px+combatAnim.heroLungeX+combatAnim.heroKnockX;
   let hopY=inCombat?combatAnim.heroHopY:0;
   let squash=1;
@@ -1152,19 +1068,15 @@ function renderField(){
   const baseHeroY=groundY-22;
   const heroY=baseHeroY+hopY;
 
-  // Player death animation — stagger back then collapse to ground
   const playerDying=deathAnim.active&&deathAnim.type==='player';
   if(playerDying){
     const dp=Math.min(deathAnim.timer/deathAnim.duration,1);
-    // Phase 1 (0-0.3): stagger back with red flash
-    // Phase 2 (0.3-0.7): fall & rotate toward ground
-    // Phase 3 (0.7-1.0): lie on ground, blink
     const staggerX=dp<0.3? -dp/0.3*8 : -8;
     let fallRot=0, fallY=0;
     if(dp>=0.3&&dp<0.7){
       const fp=(dp-0.3)/0.4;
-      fallRot=fp*Math.PI*0.5; // rotate 90deg clockwise (fall forward-right)
-      fallY=fp*fp*(groundY-heroY-4); // accelerate toward ground
+      fallRot=fp*Math.PI*0.5;
+      fallY=fp*fp*(groundY-heroY-4);
     } else if(dp>=0.7){
       fallRot=Math.PI*0.5;
       fallY=groundY-heroY-4;
@@ -1172,29 +1084,24 @@ function renderField(){
     const blinkAlpha=dp>=0.7?(Math.sin((dp-0.7)/0.3*Math.PI*6)>0?1:0.3):1;
     ctx.save();ctx.globalAlpha=blinkAlpha;
     ctx.translate(heroX+staggerX,heroY+fallY);ctx.rotate(fallRot);
-    // Hero body (same as normal)
     ctx.fillStyle='#3070d0';ctx.fillRect(-5,-6,10,10);
     ctx.fillStyle='#e8c090';ctx.fillRect(-4,-12,8,7);
     ctx.fillStyle='#604020';ctx.fillRect(-4,-14,8,4);
     ctx.fillStyle='#404880';ctx.fillRect(-3,4,3,5);ctx.fillRect(1,4,3,5);
-    // Red flash overlay during stagger
     if(dp<0.35){
       ctx.fillStyle='rgba(255,80,80,'+Math.max(0,0.8-dp*2.5)+')';
       ctx.fillRect(-7,-15,14,22);
     }
     ctx.restore();
-    // "やられた!" text
     if(dp<0.6){
       ctx.save();ctx.globalAlpha=Math.max(0,1-dp/0.6);
       ctx.fillStyle='#f44';ctx.font='bold 13px monospace';
       ctx.fillText('やられた！',heroX-30,heroY-25-dp*20);
       ctx.restore();
     }
-    // Show HP=0 bar
     ctx.fillStyle='#030';ctx.fillRect(heroX-12,heroY-20,24,4);
     ctx.fillStyle='#f44';ctx.fillRect(heroX-12,heroY-20,0,4);
   } else {
-    // Normal hero rendering
     // Shadow
     ctx.fillStyle='rgba(0,0,0,0.2)';
     ctx.beginPath();ctx.ellipse(heroX,groundY,8-Math.abs(hopY)*0.2,3,0,0,Math.PI*2);ctx.fill();
@@ -1204,16 +1111,11 @@ function renderField(){
     ctx.scale(1+(squash-1)*0.5,1/squash);
     ctx.translate(-heroX,-(heroY+6));
 
-    // Torso
     ctx.fillStyle='#3070d0';ctx.fillRect(heroX-5,heroY-6,10,10);
-    // Head
     ctx.fillStyle='#e8c090';ctx.fillRect(heroX-4,heroY-12,8,7);
-    // Hair
     ctx.fillStyle='#604020';ctx.fillRect(heroX-4,heroY-14,8,4);
-    // Eyes
     ctx.fillStyle='#222';ctx.fillRect(heroX+1,heroY-10,2,2);ctx.fillRect(heroX+4,heroY-10,1,2);
 
-    // Legs
     ctx.fillStyle='#404880';
     const legExt=stepAlt?3:-3;
     ctx.fillRect(heroX-3,heroY+4,3,5+legExt);
@@ -1222,7 +1124,6 @@ function renderField(){
     ctx.fillRect(heroX-4,heroY+8+legExt,4,2);
     ctx.fillRect(heroX+1,heroY+8-legExt,4,2);
 
-    // Arm + weapon swing
     const armSwing=combatAnim.attackActive?Math.sin(combatAnim.attackTimer/combatAnim.attackDuration*Math.PI*2)*8:(hopping?Math.sin(hopProgress*Math.PI)*4:0);
     ctx.fillStyle='#e8c090';
     ctx.save();
@@ -1231,17 +1132,15 @@ function renderField(){
     ctx.fillStyle='#c0c0d0';ctx.fillRect(6,-3,2,8);
     ctx.fillStyle='#fa0';ctx.fillRect(5,-1,4,2);
     ctx.restore();
-    // Shield
     ctx.fillStyle='#4060a0';ctx.fillRect(heroX-7,heroY-5,3,7);
     ctx.fillStyle='#5080c0';ctx.fillRect(heroX-6,heroY-3,1,3);
 
-    // Hero hit flash
     if(combatAnim.heroHitFlash>0){
       ctx.fillStyle='rgba(255,255,255,'+combatAnim.heroHitFlash+')';
       ctx.fillRect(heroX-6,heroY-14,12,24);
     }
 
-    ctx.restore(); // end squash transform
+    ctx.restore();
   }
 
   // HP bar above player
@@ -1275,14 +1174,7 @@ function renderField(){
 
   ctx.restore();
 
-  // Distance display
   document.getElementById('dist-display').textContent=player.totalDistance+'km';
-
-  // Update ghost dots
-  for(let i=0;i<3;i++){
-    const dot=document.getElementById('g'+i);
-    if(dot){const pct=((ghosts[i].pos*2)%100);dot.style.left=pct+'%';}
-  }
 }
 
 // ===== UI Updates =====
@@ -1323,6 +1215,23 @@ function updateUI(){
       sRow('ガード','---')+sRow('つよさ','---');
   }
 
+  // Stat allocation
+  const spDisp=document.getElementById('sp-display');
+  spDisp.textContent='SP: '+player.sp;
+  spDisp.style.color=player.sp>0?'#fa0':'#334';
+  const allocRows=document.getElementById('alloc-rows');
+  const stats=[
+    {key:'atk',label:'ATK',val:player.baseAtk},
+    {key:'vit',label:'VIT',val:player.baseVit},
+    {key:'spd',label:'SPD',val:player.baseSpd},
+    {key:'int',label:'INT',val:player.baseInt},
+    {key:'luk',label:'LUK',val:player.baseLuk},
+  ];
+  allocRows.innerHTML=stats.map(s=>
+    '<button class="alloc-btn'+(player.sp>0?' has-points':'')+'" data-stat="'+s.key+'">'+
+    s.label+' <span class="alloc-stat">'+s.val+'</span></button>'
+  ).join('');
+
   const es=document.getElementById('equip-slots');
   es.innerHTML=player.equips.map((eq,i)=>{
     const icon=SLOT_ICONS[i];
@@ -1346,7 +1255,7 @@ function sRow(label,val,warn){
 
 function updateLog(){
   const lp=document.getElementById('log-panel');
-  const show=eventLog.slice(0,100);
+  const show=eventLog.slice(0,4);
   let html='';
   for(const e of show){
     html+='<div class="log-entry'+(e.cls?' '+e.cls:'')+'">'+e.msg+'</div>';
@@ -1399,9 +1308,15 @@ function start(){
     const ns=(Date.now()^(Math.random()*0xffff))&0x7fffffff;
     history.replaceState(null,'','?seed='+ns);initGame(ns);
   });
-  document.getElementById('strat-select').addEventListener('change',(e)=>{
-    strategy=e.target.value;addLog('ほうしんへんこう: '+strategy,'');
+
+  // Stat allocation — event delegation
+  document.getElementById('alloc-rows').addEventListener('click',(e)=>{
+    const btn=e.target.closest('.alloc-btn');
+    if(!btn)return;
+    const stat=btn.dataset.stat;
+    if(stat)allocStat(stat);
   });
+
   requestAnimationFrame(loop);
 }
 start();
